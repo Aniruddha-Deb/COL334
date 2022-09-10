@@ -13,7 +13,7 @@ int main() {
     std::signal(SIGTERM, terminate);
     std::signal(SIGKILL, terminate);
 
-    Server srv("127.0.0.1", 15001);
+    Server srv(15000, 15001);
     srv.run(running);
 
     return 0;

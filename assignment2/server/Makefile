@@ -2,7 +2,7 @@ CPPC=g++
 CPPFLAGS=-std=c++14 -Wall
 RM=rm
 
-SRC := src/server.cpp src/main.cpp
+SRC := src/main.cpp
 OBJ := $(patsubst src/%.cpp, obj/%.o, $(SRC))
 DEP := $(patsubst src/%.cpp, obj/%.d, $(SRC))
 BIN := bin/server
@@ -17,7 +17,7 @@ $(BIN): $(OBJ)
 -include $(DEP)
 
 obj/%.o: src/%.cpp Makefile
-	$(CPPC) $(CPPFLAGS) $(INC) $(LIB) -c $< -o $@ $(LFLAGS)
+	$(CPPC) $(CPPFLAGS) -MMD -MP $(INC) $(LIB) -c $< -o $@ $(LFLAGS)
 
 clean:
 	$(RM) $(OBJ) $(BIN) $(DEP)

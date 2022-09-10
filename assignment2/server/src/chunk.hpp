@@ -1,10 +1,12 @@
+#pragma once
+
 #include <vector>
 #include <fstream>
 #include <string>
 #include <memory>
 
 struct FileChunk {
-    uint16_t id;
+    uint32_t id;
     uint16_t size;
     char data[1024];
 };
@@ -21,12 +23,12 @@ std::vector<std::shared_ptr<FileChunk>> read_and_chunk_file(std::string filename
     std::vector<std::shared_ptr<FileChunk>> v;
 
     while (infile.eofbit != 1) {
-        FileChunk f;
-        f.id = id_ctr;
-        infile.read(f.data, 1024);
-        f.size = infile.gcount();
+        std::shared_ptr<FileChunk> fptr(new FileChunk);
+        fptr->id = id_ctr;
+        infile.read(fptr->data, 1024);
+        fptr->size = infile.gcount();
 
-        v.push_back(std::shared_ptr<FileChunk>(&f));
+        v.push_back(fptr);
     }
 
     return v;

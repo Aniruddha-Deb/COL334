@@ -1,3 +1,5 @@
+#pragma once
+
 #include <unordered_map>
 #include <list>
 
@@ -31,7 +33,7 @@ public:
 
     V access(K key) {
         if (cache_map.find(key) != cache_map.end()) {
-            usage.erase(key);
+            usage.erase(key_map[key]);
             usage.push_front(key);
             key_map[key] = usage.begin();
             return cache_map[key];
