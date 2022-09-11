@@ -19,9 +19,6 @@ using udpaddr_t = struct sockaddr_in;
 
 class Server {
 
-    uint16_t _tcp_port;
-    uint16_t _udp_port;
-
     EventQueue _evt_queue;
 
     // we need a TCP server socket for client->server chunk transfer
@@ -56,20 +53,27 @@ class Server {
     std::unordered_map<uintptr_t,std::unique_ptr<TCPConnection>> _clients_pending_registration;
     uint32_t _next_client_id;
 
+    uint32_t _tot_chunks;
+    uint32_t _min_clients;
+    bool _distributed_all_chunks = false;
+    bool _informed_clients = false;
+
     // LRU Cache to cache some blocks
     LRUCache<uint32_t,std::shared_ptr<FileChunk>> _chunk_cache;
 
-    uint32_t _tot_chunks;
+    // initial file chunk list
+    std::queue<std::shared_ptr<FileChunk>> _file_chunks_to_distribute;
+    std::unordered_set<uint32_t> _file_chunks_being_distributed;
+    std::unordered_set<uint32_t> _file_chunks_distributed;
 
 public:
 
-    Server(uint16_t tcp_port, uint16_t udp_port): 
-        _tcp_port{tcp_port},
-        _udp_port{udp_port},
-        _tcp_ss{tcp_port},
-        _udp_ss{udp_port},
+    Server(uint16_t port, uint32_t min_clients, size_t chunk_cache_size): 
+        _tcp_ss{port},
+        _udp_ss{port},
         _next_client_id{0},
-        _chunk_cache{100} {
+        _min_clients{min_clients},
+        _chunk_cache{chunk_cache_size} {
 
         _evt_queue.add_event(_tcp_ss.get_fd(), EVFILT_READ);
         _evt_queue.add_event(_udp_ss.get_fd(), EVFILT_READ);
@@ -77,14 +81,35 @@ public:
 
         _udp_ss.on_chunk_request(std::bind(&Server::received_chunk_request,this,_1,_2));
 
-        // TODO chunk file here
-        _tot_chunks = 1000;
-
         std::cout << "Created server" << std::endl;
 
     }
 
+    void load_file(std::string filepath) {
+        // the server will equally distribute the 1kb chunks among min_clients 
+        // (The first n clients who join the server). once min_clients connect 
+        // to the server, the server will delete the file and all transactions
+        // taking place after that will be PSP
+        
+        _file_chunks_to_distribute = read_and_chunk_file(filepath);
+        _tot_chunks = _file_chunks_to_distribute.size();
+
+        std::cout << "Loaded file" << std::endl;
+    }
+
     void sent_chunk(uint32_t chunk_id, uint32_t client_id, int errcode) {
+
+        if (!_distributed_all_chunks) {
+            if (_file_chunks_being_distributed.find(chunk_id) != _file_chunks_being_distributed.end()) {
+                _file_chunks_being_distributed.erase(chunk_id);
+                _file_chunks_distributed.insert(chunk_id);
+                if (_file_chunks_distributed.size() == _tot_chunks) {
+                    _distributed_all_chunks = true;
+                    std::cout << "Distributed all chunks" << std::endl;
+                }
+            }
+        }
+
         if (errcode != 0) {
             std::cout << "Could not write chunk" << std::endl;
             return;
@@ -150,7 +175,7 @@ public:
 
             for (auto p : _client_udp_map) {
                 if (p.first != client_id) {
-                    _udp_ss.request_chunk_async(p.second,chunk_id);
+                    _udp_ss.request_chunk_async(p.second,client_id,chunk_id);
                 }
             }
         }
@@ -158,14 +183,12 @@ public:
 
     // by convention, assume that udp_socket on client is tcp_socket+1
     static udpaddr_t tcp_to_udp_addr(struct sockaddr_in addr) {
-        addr.sin_port += 1;
         return addr;
     }
 
     void run(volatile bool& running) {
 
         _tcp_ss.listen();
-        int evtlen = -1;
 
         while (running) {
 
@@ -174,6 +197,14 @@ public:
             // maybe return std::unique_ptr<event_t> instead of raw copies? 
             // I don't even know how (if) move semantics are working here
             std::vector<event_t> evts = _evt_queue.get_events();
+
+            if (_distributed_all_chunks and !_informed_clients) {
+                for (auto& p : _client_udp_map) {
+                    _udp_ss.request_chunk_async(p.second, 0xffffffff, 0);
+                }
+                _informed_clients = true;
+                std::cout << "Informed all clients that chunks were distributed" << std::endl;
+            }
 
             for (const auto& e : evts) {
                 if (e.ident == _tcp_ss.get_fd()) {
@@ -200,13 +231,30 @@ public:
 
                     std::cout << "Sent registration data" << std::endl;
                     _client_tcp_map[conn->get_client_id()] = conn->get_fd();
-                    _client_udp_map[conn->get_client_id()] = tcp_to_udp_addr(conn->get_address());
+                    _client_udp_map[conn->get_client_id()] = conn->get_address();
                     _client_requests.emplace(conn->get_client_id(), std::unordered_set<uint32_t>());
                     conn->on_rcv_chunk(std::bind(&Server::received_chunk,this,_1,_2));
                     conn->on_send_chunk(std::bind(&Server::sent_chunk,this,_1,_2,_3));
                     conn->on_disconnect(std::bind(&Server::client_disconnected,this,_1));
+
+                    // need to send initial chunks now
+                    if (_distributed_all_chunks) {
+                        _udp_ss.request_chunk_async(_client_udp_map[conn->get_client_id()], 0xffffffff, 0);
+                    }
+                    else {
+                        int ctr = 0;
+                        int chunk_lim = 1 + ((_tot_chunks-1)/_min_clients);
+                        while (!_file_chunks_to_distribute.empty() and ctr < chunk_lim) {
+                            conn->send_chunk_async(_file_chunks_to_distribute.front());
+                            _file_chunks_being_distributed.insert(_file_chunks_to_distribute.front()->id);
+                            _file_chunks_to_distribute.pop();
+                            ctr++;
+                        }
+                    }
+
                     _fd_map.emplace(conn->get_fd(), std::move(conn));
                     _clients_pending_registration.erase(e.ident);
+
                     std::cout << "Registered client" << std::endl;
                 }
                 else if (_fd_map.find(e.ident) != _fd_map.end()) {

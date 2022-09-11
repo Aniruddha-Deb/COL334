@@ -22,6 +22,12 @@ public:
         //_evtset.insert({fd,filter});
     }
 
+    void add_timer_event(uintptr_t fd, uint32_t period_in_ms) {
+        event_t evt;
+        EV_SET(&evt, fd, EVFILT_TIMER, EV_ADD|EV_ENABLE, 0, period_in_ms, NULL);
+        kevent(_kq, &evt, 1, NULL, 0, NULL);
+    }
+
     void delete_event(uintptr_t fd, int16_t filter) {
         event_t evt;
         EV_SET(&evt, fd, filter, EV_DELETE, 0, 0, NULL);

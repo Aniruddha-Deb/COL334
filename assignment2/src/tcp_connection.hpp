@@ -20,11 +20,14 @@ class TCPConnection {
     uintptr_t _fd;
     uintptr_t _client_id;
     struct sockaddr_in _address;
+    struct sockaddr_in _remote;
     std::queue<std::shared_ptr<FileChunk>> _send_chunk_buffer;
 
     std::function<void(std::shared_ptr<FileChunk>,int)> _rcv_callback;
     std::function<void(uint32_t,uint32_t,int)> _send_callback;
     std::function<void(uint32_t)> _disconnect_callback;
+
+    uint16_t _port;
 
 public:
 
@@ -37,11 +40,12 @@ public:
         hints.ai_socktype = SOCK_STREAM;
         getaddrinfo(dest_addr.c_str(), std::to_string(dest_port).c_str(), &hints, &res);
 
+        memcpy(&_remote, res->ai_addr, res->ai_addrlen);
+
         _fd = socket(res->ai_family, res->ai_socktype, res->ai_protocol);
         if (_fd == -1) {
             std::cout << "ERROR: failed to allocate socket for dest_addr " << dest_addr << ":" << dest_port << std::endl;
-            std::cout << "Terminating" << std::endl;
-            running = false;
+            return;
         }
 
         // set socket to be non-blocking
@@ -51,11 +55,40 @@ public:
         const int sock_recv_lwm = sizeof(FileChunk);
         setsockopt(_fd, SOL_SOCKET, SO_RCVLOWAT, &sock_recv_lwm, sizeof(sock_recv_lwm));
 
-        // while calling connect, it's safer to not bind. The kernel will allocate
-        // a port to us, and anyway, the port number does not matter.
-        connect(_fd, res->ai_addr, res->ai_addrlen);
-
+        ::connect(_fd, res->ai_addr, res->ai_addrlen);
         freeaddrinfo(res);
+
+        // This incorporates binding logic that only binds to port n if port n+1
+        // is empty (can connect UDP socket to n+1 then)
+
+        // hints.ai_flags = AI_PASSIVE;
+        // struct addrinfo *local;
+        // uint16_t src_port = 15002;
+        // getaddrinfo(nullptr, std::to_string(src_port).c_str(), &hints, &local);
+        // int err = 0;
+        // do {
+        //     getaddrinfo(nullptr, std::to_string(src_port+1).c_str(), &hints, &local);
+        //     err = bind(_fd, local->ai_addr, local->ai_addrlen);
+        //     if (err == -1) {
+        //         src_port += 2;
+        //         std::cout << "Could not use port pair " << src_port << "," << src_port+1 << ". Continuing search" << std::endl;
+        //         continue;
+        //     }
+
+        //     err = bind(_fd, local->ai_addr, local->ai_addrlen);
+            
+        //     if (err == -1) {
+        //         src_port += 2;
+        //         std::cout << "Could not use port pair " << src_port << "," << src_port+1 << ". Continuing search" << std::endl;
+        //         continue;
+        //     }
+        // } while (err != 0);
+
+        socklen_t len = sizeof(_address);
+        getsockname(_fd, (struct sockaddr*)&_address, &len);
+
+        // _dest = res;
+        // freeaddrinfo(local);
     }
 
     TCPConnection(uintptr_t fd, uint32_t client_id, struct sockaddr_in address): 
@@ -81,11 +114,16 @@ public:
     }
 
     int send_regdata_sync(uint32_t client_id, uint32_t num_chunks) {
-        std::cout << "No segfault yet" << std::endl;
         uint64_t data = (((uint64_t)client_id)<<32) | num_chunks;
-        std::cout << "Nope, all safe. fd: " << _fd << std::endl;
         return send(_fd, &data, sizeof(data), 0);
     }
+
+    uint64_t recv_regdata_sync() {
+        uint64_t data;
+        recv(_fd, &data, sizeof(data), 0);
+        return data;
+    }
+
 
     void send_chunk_async(std::shared_ptr<FileChunk> f) {
         _send_chunk_buffer.push(f);
@@ -122,7 +160,7 @@ public:
                 _send_callback(0, 0, errno);
             }
             else {
-                std::cout << "sent " << nb << " bytes to TCP socket " << get_address_as_string() << std::endl;
+                // std::cout << "sent " << nb << " bytes to TCP socket " << get_address_as_string() << std::endl;
                 _send_chunk_buffer.pop();
                 _send_callback(p->id, _client_id, 0);
             }
@@ -147,7 +185,7 @@ public:
             // handle the event where we don't read a complete filechunk in...
             // actually, such an event won't come up due to the low-water level
             // we've set.
-            std::cout << "read " << nb << " bytes from TCP socket " << get_address_as_string() << std::endl;
+            // std::cout << "read " << nb << " bytes from TCP socket " << get_address_as_string() << std::endl;
             _rcv_callback(c,0);
         }
     }
@@ -166,6 +204,10 @@ public:
 
     struct sockaddr_in get_address() {
         return _address;
+    }
+
+    struct sockaddr_in get_remote() {
+        return _remote;
     }
 
 };
