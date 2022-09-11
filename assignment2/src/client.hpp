@@ -75,8 +75,8 @@ public:
     }
 
     void sent_chunk(uint32_t chunk_id, uint32_t client_id, int errcode) {
-        if (errcode != -1)
-            std::cout << "Sent chunk " << chunk_id << " to server" << std::endl;
+        // if (errcode != -1)
+            // std::cout << "Sent chunk " << chunk_id << " to server" << std::endl;
     }
 
     void received_chunk(std::shared_ptr<FileChunk> chunk, int errcode) {
@@ -211,14 +211,14 @@ public:
                     // don't need num-event granularity; just requeue stale 
                     // requests when this callback happens
                     auto curr_time = std::chrono::high_resolution_clock::now();
-                    for (auto p : _chunk_request_times) {
-                        std::cout << p.first << "," << (curr_time-p.second)/1ms << std::endl;
-                    }
+                    // for (auto p : _chunk_request_times) {
+                    //     std::cout << p.first << "," << (curr_time-p.second)/1ms << std::endl;
+                    // }
 
                     for (auto it = _chunk_request_times.cbegin(); it != _chunk_request_times.cend(); ) {
-                        if ((curr_time-it->second)/1ms > 500) {
+                        if ((curr_time-it->second)/1ms > 5000) {
                             // re-request chunk
-                            std::cout << "re-requesting chunk " << it->first << std::endl;
+                            //std::cout << "re-requesting chunk " << it->first << std::endl;
                             _chunk_req_sequence.push_back(it->first);
                             _chunk_request_times.erase(it++);
                             continue;
@@ -241,7 +241,7 @@ public:
                 if (_next_chunk_idx < _chunk_req_sequence.size()) {
                     // get and store server udp socket id 
                     // would just be server tcp socket id + 1
-                    std::cout << "Requesting chunk " << _chunk_req_sequence[_next_chunk_idx] << std::endl;
+                    //std::cout << "Requesting chunk " << _chunk_req_sequence[_next_chunk_idx] << std::endl;
                     //std::cout << _file_chunks[_chunk_req_sequence[_next_chunk_idx]] <<
                     _udp_sock.request_chunk_async(
                         _tcp_conn.get_remote(),

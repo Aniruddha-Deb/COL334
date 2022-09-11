@@ -16,7 +16,7 @@ std::queue<std::shared_ptr<FileChunk>> read_and_chunk_file(std::string filename)
 
     std::ifstream infile(filename);
 
-    uint16_t id_ctr = 0;
+    uint32_t id_ctr = 0;
     std::queue<std::shared_ptr<FileChunk>> v;
 
     while (!infile.eof()) {
