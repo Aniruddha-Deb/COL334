@@ -1,6 +1,14 @@
 CPPC=g++
-CPPFLAGS=-std=c++14 -Wall
+NORMAL_FLAGS := -std=c++14
+PEDANTIC_FLAGS := -g
+
 RM=rm
+
+ifeq ($(DEBUG), 1)
+	CPPFLAGS := $(NORMAL_FLAGS) $(PEDANTIC_FLAGS)
+else
+	CPPFLAGS := $(NORMAL_FLAGS)
+endif
 
 SRC_SERVER := src/server.cpp
 OBJ_SERVER := $(patsubst src/%.cpp, obj/%.o, $(SRC_SERVER))

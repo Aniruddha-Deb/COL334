@@ -111,7 +111,7 @@ public:
         }
 
         if (errcode != 0) {
-            std::cout << "Could not write chunk" << std::endl;
+            std::cout << "Could not write chunk (errno " << errno << ")" << std::endl;
             return;
         }
         _chunk_requests[chunk_id].erase(client_id);
@@ -137,7 +137,7 @@ public:
 
     void received_chunk(std::shared_ptr<FileChunk> chunk, int errcode) {
         if (errcode != 0) {
-            std::cout << "Could not read chunk" << std::endl;
+            std::cout << "Could not read chunk (errno " << errno << ")" << std::endl;
             return;
         }
 
@@ -212,24 +212,6 @@ public:
                     auto conn = _tcp_ss.accept(_next_client_id++);
                     _evt_queue.add_event(conn->get_fd(), EVFILT_READ);
                     _evt_queue.add_event(conn->get_fd(), EVFILT_WRITE);
-                    _clients_pending_registration.emplace(conn->get_fd(), std::move(conn));
-
-                }
-                else if (_clients_pending_registration.find(e.ident) != _clients_pending_registration.end() and 
-                         e.filter == EVFILT_WRITE) {
-                    // send over registration data
-                    std::cout << "Sending registration data to client" << std::endl;
-                    auto conn = std::move(_clients_pending_registration[e.ident]);
-                    int status = conn->send_regdata_sync(conn->get_client_id(), _tot_chunks);
-                    std::cout << status << std::endl;
-                    if (status == -1) {
-                        // do errno check
-                    }
-                    else {
-                        // check if it's less than 8 
-                    }
-
-                    std::cout << "Sent registration data" << std::endl;
                     _client_tcp_map[conn->get_client_id()] = conn->get_fd();
                     _client_udp_map[conn->get_client_id()] = conn->get_address();
                     _client_requests.emplace(conn->get_client_id(), std::unordered_set<uint32_t>());
@@ -237,8 +219,12 @@ public:
                     conn->on_send_chunk(std::bind(&Server::sent_chunk,this,_1,_2,_3));
                     conn->on_disconnect(std::bind(&Server::client_disconnected,this,_1));
 
+                    std::cout << "Sending registration data to client" << std::endl;
+                    _udp_ss.request_chunk_async(_client_udp_map[conn->get_client_id()], conn->get_client_id(), _tot_chunks);
+
                     // need to send initial chunks now
                     if (_distributed_all_chunks) {
+                        std::cout << "All chunks distributed already, letting client know" << std::endl;
                         _udp_ss.request_chunk_async(_client_udp_map[conn->get_client_id()], 0xffffffff, 0);
                     }
                     else {
@@ -253,7 +239,6 @@ public:
                     }
 
                     _fd_map.emplace(conn->get_fd(), std::move(conn));
-                    _clients_pending_registration.erase(e.ident);
 
                     std::cout << "Registered client" << std::endl;
                 }

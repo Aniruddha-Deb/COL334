@@ -27,8 +27,6 @@ class TCPConnection {
     std::function<void(uint32_t,uint32_t,int)> _send_callback;
     std::function<void(uint32_t)> _disconnect_callback;
 
-    uint16_t _port;
-
 public:
 
     TCPConnection(std::string dest_addr, uint16_t dest_port) {

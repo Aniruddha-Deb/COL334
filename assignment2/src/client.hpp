@@ -21,8 +21,6 @@ using udpaddr_t = struct sockaddr_in;
 
 class Client {
 
-    uint16_t _port;
-
     TCPConnection _tcp_conn;
     UDPSocket _udp_sock;
 
@@ -68,6 +66,11 @@ public:
         _evt_queue.add_event(_udp_sock.get_fd(), EVFILT_READ);
         _evt_queue.add_event(_udp_sock.get_fd(), EVFILT_WRITE);
 
+        _tcp_conn.on_rcv_chunk(std::bind(&Client::received_chunk,this,_1,_2));
+        _tcp_conn.on_send_chunk(std::bind(&Client::sent_chunk,this,_1,_2,_3));
+        _tcp_conn.on_disconnect(std::bind(&Client::disconnected,this,_1));
+        _udp_sock.on_chunk_request(std::bind(&Client::received_chunk_request,this,_1,_2));
+
         std::cout << "Created client and connected to server" << std::endl;
     }
 
@@ -101,6 +104,7 @@ public:
         // TODO incorporate passing metadata in the zeroth chunk eg. name of file
         // for now, we save everything as text files
         // (definetly not a good thing)
+        std::cout << "Saving file" << std::endl;
         std::string fname = "outfile_" + std::to_string(_client_id) + ".txt";
         std::ofstream f(fname);
 
@@ -112,6 +116,26 @@ public:
     }
 
     void received_chunk_request(uint32_t client_id, uint32_t chunk_id) {
+
+        if (client_id == 0xffffffff) {
+            _can_request = true;
+            return;
+        }
+
+        if (!_registered) {
+            // register
+            std::cout << "Reading registration data" << std::endl;
+            _client_id = client_id;
+            _num_chunks = chunk_id;
+            _registered = true;
+
+            // setup chunk receiving infrastructure
+            init_chunk_request_sequence();
+
+            std::cout << "registered with client_id " << _client_id << std::endl;
+            return;
+        }
+
         // send the chunk on tcp, if we have it
         if (_file_chunks[chunk_id] != nullptr) {
             _tcp_conn.send_chunk_async(_file_chunks[chunk_id]);
@@ -133,16 +157,6 @@ public:
         // so, we'll have to reconnect to the server now and continue obtaining
         // chunks as before.
         std::cout << "Disconnected, TODO implement this" << std::endl;
-    }
-
-    // void connect() {
-    //     _tcp_conn.connect();
-    // }
-
-    // by convention, assume that udp_socket on client is tcp_socket+1
-    static udpaddr_t tcp_to_udp_addr(struct sockaddr_in addr) {
-        addr.sin_port += 1;
-        return addr;
     }
 
     void init_chunk_request_sequence() {
@@ -176,28 +190,6 @@ public:
             for (const auto& e : evts) {
                 if (e.ident == _tcp_conn.get_fd()) {
                     if (e.filter == EVFILT_READ) {
-                        if (!_registered) {
-                            // register
-                            uint64_t regdata = _tcp_conn.recv_regdata_sync();
-                            _client_id = (uint32_t)(regdata>>32);
-                            _num_chunks = (uint32_t)regdata;
-                            _registered = true;
-
-                            // setup chunk receiving infrastructure
-                            init_chunk_request_sequence();
-
-                            // setup callbacks
-
-                            _tcp_conn.on_rcv_chunk(std::bind(&Client::received_chunk,this,_1,_2));
-                            _tcp_conn.on_send_chunk(std::bind(&Client::sent_chunk,this,_1,_2,_3));
-                            _tcp_conn.on_disconnect(std::bind(&Client::disconnected,this,_1));
-                            _udp_sock.on_chunk_request(std::bind(&Client::received_chunk_request,this,_1,_2));
-                            _udp_sock.on_allow_requests(std::bind(&Client::chunk_requests_allowed,this));
-
-                            std::cout << "registered with client_id " << _client_id << std::endl;
-                            // receive initial chunks 
-                            // actually, let _tcp_conn.can_read() handle that
-                        }
                         _tcp_conn.can_read();
                     }
                     else if (e.filter == EVFILT_WRITE) {
@@ -219,24 +211,28 @@ public:
                     // don't need num-event granularity; just requeue stale 
                     // requests when this callback happens
                     auto curr_time = std::chrono::high_resolution_clock::now();
+                    for (auto p : _chunk_request_times) {
+                        std::cout << p.first << "," << (curr_time-p.second)/1ms << std::endl;
+                    }
 
                     for (auto it = _chunk_request_times.cbegin(); it != _chunk_request_times.cend(); ) {
                         if ((curr_time-it->second)/1ms > 500) {
                             // re-request chunk
+                            std::cout << "re-requesting chunk " << it->first << std::endl;
                             _chunk_req_sequence.push_back(it->first);
-                            _chunk_request_times.erase(it);
+                            _chunk_request_times.erase(it++);
                             continue;
+                        }     
+                        else {   // this is voodoo magic to me, pulled off StackOverflow.
+                                 // TODO learn how to delete from a map while iterating through it
+                            ++it;
                         }
-                        it++;
                     }
-                    std::cout << "After timer: " << _chunk_request_times.size() << std::endl;
-                    for (auto p : _chunk_request_times) {
-                        std::cout << p.first << "," << (curr_time-p.second)/1ms << std::endl;
-                    }
+                    // std::cout << "After timer: " << _chunk_request_times.size() << std::endl;
                 }
             }
 
-            if (_can_request) {
+            if (_can_request and _registered) {
                 // now, request the chunks we don't have on UDP, once in every loop
                 while (_next_chunk_idx < _chunk_req_sequence.size() and 
                        _rcvd_chunks.find(_chunk_req_sequence[_next_chunk_idx]) != _rcvd_chunks.end()) {

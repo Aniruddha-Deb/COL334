@@ -136,6 +136,11 @@ public:
         _chunk_req_buffer.push({addr,{client_id,chunk_id}});
     }
 
+    void request_chunk_sync(const struct sockaddr_in addr, const uint32_t client_id, const uint32_t chunk_id) {
+        _chunk_req_buffer.push({addr,{client_id,chunk_id}});
+        can_write();
+    }
+
     void on_allow_requests(const std::function<void(void)> callback) {
         _allow_req_callback = callback;
     }
@@ -155,12 +160,7 @@ public:
             //std::cout << "Read " << req_data << " (" << nb << " bytes) from UDP socket" << std::endl;
             uint32_t client_id = (uint32_t)(req_data>>32);
             uint32_t chunk_id = (uint32_t)req_data;
-            if (client_id == 0xffffffff) {
-                _allow_req_callback();
-            }
-            else {
-                _req_callback(client_id, chunk_id);
-            }
+            _req_callback(client_id, chunk_id);
         }
     }
 
