@@ -1,0 +1,16 @@
+#include <sys/socket.h>
+#include <errno.h>
+
+#include "server.hpp"
+
+void Server::can_read_UDP() {
+    ControlMessage req_data;
+    int nb = recvfrom(_udp_ss, &req_data, sizeof(req_data), 0, nullptr, 0);
+
+    if (nb == -1) {
+        std::cerr << "Error while reading from UDP socket (errno " << errno << ")" << std::endl;
+    }
+    else {
+        received_chunk_request(req_data.client_id, req_data.chunk_id);
+    }
+}
