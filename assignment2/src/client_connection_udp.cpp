@@ -20,6 +20,26 @@ ClientConnection::ClientConnection(
     _tcp_fd{tcp_fd},
     _udp_fd{udp_fd} {
 
+    // set tcp_fd to be non blocking
+    fcntl(_tcp_fd, F_SETFL, O_NONBLOCK);
+
+    // set socket low-water mark value for input to be the size of one file chunk
+    const int sock_recv_lwm = sizeof(FileChunk);
+    setsockopt(_tcp_fd, SOL_SOCKET, SO_RCVLOWAT, &sock_recv_lwm, sizeof(sock_recv_lwm));
+
+    // we don't have to do something similar for send, as that would slow down 
+    // the speed at which we're sending. Just having this at one end is okay
+
+    // socket buffer sizes are generally big enough (on my mac, it's 128 kB) for
+    // buffer overflows to be a non-issue, so we don't tweak the default buffer
+    // size
+
+    // The sequentiality of TCP guarantees that we're always reading a contiguous
+    // chunk sent by client/server. So we don't need a protocol indicating length 
+    // or anything of that sort; just chunk into 1024 bytes while reading.
+
+    // timeouts are also ok; let's not change those.
+    
     _client_addr = client_addr;
 }
 
@@ -74,22 +94,3 @@ void ClientConnection::can_write_UDP() {
         }
     }
 }
-
-    void ClientConnection::can_read_UDP() {
-        ControlMessage req_data;
-        // struct sockaddr_in sender_addr;
-        // socklen_t sender_addr_len = sizeof(sender_addr);
-        // let's see if this poses problems
-        int nb = recvfrom(_udp_fd, &req_data, sizeof(req_data), 0, 
-                          (struct sockaddr*)&sender_addr, &sender_addr_len);
-
-        if (nb == -1) {
-            std::cerr << "Error while reading from UDP socket" << std::endl;
-        }
-        else {
-            //std::cout << "Read " << req_data << " (" << nb << " bytes) from UDP socket" << std::endl;
-            uint32_t client_id = (uint32_t)(req_data>>32);
-            uint32_t chunk_id = (uint32_t)req_data;
-            _recv_chunk_req_callback(client_id, chunk_id);
-        }
-    }

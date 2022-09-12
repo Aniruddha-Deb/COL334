@@ -8,11 +8,8 @@
 #include <functional>
 
 #include "event_queue.hpp"
-#include "tcp_server_socket.hpp"
 #include "client_connection.hpp"
 #include "protocol.hpp"
-#include "udp_socket.hpp"
-#include "tcp_connection.hpp"
 #include "lru_cache.hpp"
 
 using namespace std::placeholders;
@@ -39,7 +36,7 @@ class Server {
     std::unordered_map<uint32_t,std::unordered_set<uint32_t>> _client_requests;
 
     // initial file chunk list
-    std::queue<std::shared_ptr<FileChunk>> _file_chunks_to_distribute;
+    std::queue<std::shared_ptr<FileChunk>> _chunks_to_distribute;
     std::unordered_set<uint32_t> _chunks_being_distributed;
     std::unordered_set<uint32_t> _chunks_distributed;
 
@@ -47,38 +44,41 @@ class Server {
 public:
 
     void Server(uint16_t port, uint32_t min_clients, size_t chunk_cache_size):
-        _tcp_ss{port},
         _min_clients{min_clients},
         _chunk_cache{chunk_cache_size} {
 
-        create_udp_ss(port);
+        _tcp_ss = create_server_socket(port, SOCK_STREAM);
+        _udp_ss = create_server_socket(port, SOCK_DGRAM);
 
-        _evt_queue.add_event(_tcp_ss.get_fd(), EVFILT_READ);
+        _evt_queue.add_event(_tcp_ss, EVFILT_READ);
         _evt_queue.add_event(_udp_ss, EVFILT_READ);
         _evt_queue.add_event(_udp_ss, EVFILT_WRITE);
 
     }
 
-    void create_udp_ss(uint16_t port) {
+    uintptr_t create_server_socket(uint16_t port, int type) {
         struct addrinfo hints;
         struct addrinfo *res;
 
         memset(&hints, 0, sizeof hints);
+
         hints.ai_family = AF_INET;
-        hints.ai_socktype = SOCK_DGRAM;
+        hints.ai_socktype = type;
         hints.ai_flags = AI_PASSIVE; // fill in IP for us
         // TODO this can also return an error. Error handling here
         getaddrinfo(nullptr, std::to_string(port).c_str(), &hints, &res);
 
-        _udp_ss = socket(res->ai_family, res->ai_socktype, res->ai_protocol);
-        if (_udp_ss == -1) {
+        uintptr_t fd = socket(res->ai_family, res->ai_socktype, res->ai_protocol);
+        if (fd == -1) {
             std::cout << "ERROR: failed to allocate UDP socket on port " << port << std::endl;
             return;
         }
         // set socket to be non-blocking
-        fcntl(_udp_ss, F_SETFL, O_NONBLOCK);
-        bind(_udp_ss, res->ai_addr, res->ai_addrlen);
+        fcntl(fd, F_SETFL, O_NONBLOCK);
+        bind(fd, res->ai_addr, res->ai_addrlen);
         freeaddrinfo(res);
+
+        return fd;
     }
 
     void load_file(std::string filepath) {
@@ -86,9 +86,23 @@ public:
         // (The first n clients who join the server). once min_clients connect 
         // to the server, the server will delete the file and all transactions
         // taking place after that will be PSP
+
+        std::ifstream infile(filename);
+
+        uint32_t id_ctr = 0;
+
+        while (!infile.eof()) {
+            std::shared_ptr<FileChunk> fptr(new FileChunk);
+            fptr->id = id_ctr;
+            infile.read(fptr->data, 1024);
+            fptr->size = infile.gcount();
+            id_ctr++;
+
+            _chunks_to_distribute.push(fptr);
+            // std::cout << "Read chunk of " << fptr->size << " bytes from file" << std::endl;
+        }
         
-        _file_chunks_to_distribute = read_and_chunk_file(filepath);
-        _tot_chunks = _file_chunks_to_distribute.size();
+        _tot_chunks = _chunks_to_distribute.size();
 
         std::cout << "Loaded " << _tot_chunks << " from file " << filepath << std::endl;
     }
@@ -190,16 +204,23 @@ public:
     void distribute_chunks_to_client(std::unique_ptr<ClientConnection>& conn) {
         int ctr = 0;
         int chunk_lim = 1 + ((_tot_chunks-1)/_min_clients);
-        while (!_file_chunks_to_distribute.empty() and ctr < chunk_lim) {
-            conn->send_chunk(_file_chunks_to_distribute.front());
-            _chunks_being_distributed.insert(_file_chunks_to_distribute.front()->id);
-            _file_chunks_to_distribute.pop();
+        while (!_chunks_to_distribute.empty() and ctr < chunk_lim) {
+            conn->send_chunk(_chunks_to_distribute.front());
+            _chunks_being_distributed.insert(_chunks_to_distribute.front()->id);
+            _chunks_to_distribute.pop();
             ctr++;
         }
     }
 
     void accept_new_client() {
-        auto conn = _tcp_ss.accept();
+
+        struct sockaddr_in addr;
+        socklen_t addr_size = sizeof(addr);
+        uintptr_t new_fd = ::accept(_fd, (struct sockaddr*)&addr, &addr_size);
+
+        // for now, let fd and client id be the same
+        std::unique_ptr<ClientConnection> conn(new ClientConnection(new_fd, new_fd, _udp_ss, addr));
+
         _evt_queue.register_to_queue(conn->get_tcp_fd());
         _client_requests.emplace(conn->get_client_id(), std::unordered_set<uint32_t>());
         bind_callbacks_to_client(conn);
@@ -223,7 +244,7 @@ public:
 
     void run(volatile bool& running) {
 
-        _tcp_ss.listen();
+        listen(_tcp_ss, 10);
 
         while (running) {
             std::vector<event_t> evts = _evt_queue.get_events();
@@ -233,7 +254,7 @@ public:
             }
 
             for (const auto& e : evts) {
-                if (e.ident == _tcp_ss.get_fd()) {
+                if (e.ident == _tcp_ss) {
                     accept_new_client();
                 }
                 else if (e.ident == _udp_ss) {
@@ -259,7 +280,7 @@ public:
             p.second->close();
         }
 
-        _tcp_ss.close();
+        close(_tcp_ss);
         close(_udp_ss);
 
         _evt_queue.close();
@@ -307,7 +328,7 @@ public:
 //     LRUCache<uint32_t,std::shared_ptr<FileChunk>> _chunk_cache;
 
 //     // initial file chunk list
-//     std::queue<std::shared_ptr<FileChunk>> _file_chunks_to_distribute;
+//     std::queue<std::shared_ptr<FileChunk>> _chunks_to_distribute;
 //     std::unordered_set<uint32_t> _chunks_being_distributed;
 //     std::unordered_set<uint32_t> _chunks_distributed;
 
@@ -336,8 +357,8 @@ public:
 //         // to the server, the server will delete the file and all transactions
 //         // taking place after that will be PSP
         
-//         _file_chunks_to_distribute = read_and_chunk_file(filepath);
-//         _tot_chunks = _file_chunks_to_distribute.size();
+//         _chunks_to_distribute = read_and_chunk_file(filepath);
+//         _tot_chunks = _chunks_to_distribute.size();
 
 //         std::cout << "Loaded file" << std::endl;
 //     }

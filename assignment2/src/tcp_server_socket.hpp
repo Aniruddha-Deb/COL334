@@ -4,15 +4,14 @@
 
 #include "tcp_connection.hpp"
 
-extern volatile bool running;
-
 class TCPServerSocket {
 
     uintptr_t _fd;
 
 public:
-    
+
     TCPServerSocket(uint16_t port) {
+
         struct addrinfo hints;
         struct addrinfo *res;
 
@@ -24,16 +23,13 @@ public:
 
         _fd = socket(res->ai_family, res->ai_socktype, res->ai_protocol);
         if (_fd == -1) {
-            std::cout << "ERROR: failed to allocate server socket at port " << port << std::endl;
-            std::cout << "Terminating" << std::endl;
-            running = false;
+            std::cerr << "ERROR: failed to allocate server socket at port " << port << std::endl;
+            return;
         }
 
         // set socket to be non-blocking
         fcntl(_fd, F_SETFL, O_NONBLOCK);
-
         bind(_fd, res->ai_addr, res->ai_addrlen);
-
         freeaddrinfo(res);
     }
 

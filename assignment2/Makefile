@@ -4,22 +4,32 @@ PEDANTIC_FLAGS := -g
 
 RM=rm
 
-ifeq ($(DEBUG), 1)
+ifeq ($(DEBUG), )
 	CPPFLAGS := $(NORMAL_FLAGS) $(PEDANTIC_FLAGS)
 else
 	CPPFLAGS := $(NORMAL_FLAGS)
 endif
 
 SRC_SERVER := src/server.cpp
+SRC_CLIENT := src/client.cpp
+
+ifeq ($(PROTO), TCP)
+	SRC_SERVER += src/client_connection_tcp.cpp src/server_tcp.cpp
+	SRC_CLIENT += src/client_tcp.cpp
+	SERVER := bin/server_tcp
+	CLIENT := bin/client_tcp
+else
+	SRC_SERVER += src/client_connection_udp.cpp src/server_udp.cpp
+	SRC_CLIENT += src/client_udp.cpp
+	SERVER := bin/server_udp
+	CLIENT := bin/client_udp
+endif
+
 OBJ_SERVER := $(patsubst src/%.cpp, obj/%.o, $(SRC_SERVER))
 DEP_SERVER := $(patsubst src/%.cpp, obj/%.d, $(SRC_SERVER))
 
-SRC_CLIENT := src/client.cpp
 OBJ_CLIENT := $(patsubst src/%.cpp, obj/%.o, $(SRC_CLIENT))
 DEP_CLIENT := $(patsubst src/%.cpp, obj/%.d, $(SRC_CLIENT))
-
-SERVER := bin/server
-CLIENT := bin/client
 
 INC := #-I./include/
 
