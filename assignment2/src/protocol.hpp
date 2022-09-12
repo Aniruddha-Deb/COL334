@@ -1,3 +1,5 @@
+#pragma once
+
 #include <cinttypes>
 
 const uint8_t REQ = 1;
@@ -14,4 +16,4 @@ struct ControlMessage {
     uint8_t msgtype;
     uint32_t client_id;
     uint32_t chunk_id;
-}
+};

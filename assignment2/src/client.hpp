@@ -1,11 +1,17 @@
 #pragma once
 
+#include <sys/socket.h>
+#include <sys/types.h>
+#include <arpa/inet.h>
+#include <fcntl.h>
+#include <netdb.h>
 #include <string>
 #include <iostream>
 #include <unordered_map>
 #include <unordered_set>
-#include <list>
+#include <queue>
 #include <random>
+#include <fstream>
 #include <chrono>
 #include <functional>
 
@@ -49,6 +55,8 @@ class Client {
 
     size_t _next_chunk_idx;
 
+public:
+
     Client(std::string server_addr, uint16_t server_port) {
 
         struct addrinfo* dest_addr = addr_info(server_addr, server_port, SOCK_STREAM);
@@ -78,30 +86,19 @@ class Client {
         // can finally free dest_addr now
         freeaddrinfo(dest_addr);
 
-        init_evt_queue();
-
-        _tcp_sock.on_rcv_chunk(std::bind(&Client::received_chunk,this,_1,_2));
-        _tcp_sock.on_send_chunk(std::bind(&Client::sent_chunk,this,_1,_2,_3));
-        _tcp_sock.on_disconnect(std::bind(&Client::disconnected,this,_1));
-        _udp_sock.on_chunk_request(std::bind(&Client::received_chunk_request,this,_1,_2));
+        create_evt_queue();
 
         std::cout << "Created client and connected to server" << std::endl;
     }
 
-    struct addrinfo* addr_info(std::string& addr, std::string port, int socktype) {
+    struct addrinfo* addr_info(std::string& addr, uint16_t port, int socktype) {
         struct addrinfo hints;
         struct addrinfo *res;
 
         memset(&hints, 0, sizeof hints);
         hints.ai_family = AF_INET;
         hints.ai_socktype = socktype;
-        if (addr == nullptr) {
-            hints.ai_flags = AI_PASSIVE;
-            getaddrinfo(nullptr, std::to_string(port).c_str(), &hints, &res);
-        }
-        else {
-            getaddrinfo(addr.c_str(), std::to_string(port).c_str(), &hints, &res);
-        }
+        getaddrinfo(addr.c_str(), std::to_string(port).c_str(), &hints, &res);
 
         return res;
     }
@@ -109,8 +106,8 @@ class Client {
     uintptr_t create_socket(struct addrinfo* res) {
         uintptr_t fd = socket(res->ai_family, res->ai_socktype, res->ai_protocol);
         if (fd == -1) {
-            std::cout << "ERROR: failed to allocate socket for dest_addr " << dest_addr << ":" << dest_port << std::endl;
-            return;
+            std::cout << "ERROR: failed to allocate socket" << std::endl;
+            return -1;
         }
         // set socket to be non-blocking
         fcntl(fd, F_SETFL, O_NONBLOCK);
@@ -214,11 +211,11 @@ class Client {
             _num_chunks = m.chunk_id;
             _registered = true;
 
-            init_chunk_request_sequence();
+            init_chunk_request_sequence(false);
             std::cout << "registered with client_id " << _client_id << std::endl;
         }
         else if (_chunks[m.chunk_id] != nullptr) {
-            send_chunk(chunk_id);
+            send_chunk(m.chunk_id);
         }
     }
 
@@ -303,7 +300,7 @@ class Client {
 
     }
 
-}
+};
 
 
 // class Client {

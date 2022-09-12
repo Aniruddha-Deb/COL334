@@ -39,14 +39,14 @@ void Client::can_read_UDP() {
 
 void Client::can_write_TCP() {
     if (!_chunk_buffer.empty()) {
-        auto p = _chunk_buffer.front();
-        ssize_t nb = send(_tcp_sock, p.get(), sizeof(FileChunk), 0);
+        uint32_t p = _chunk_buffer.front();
+        ssize_t nb = send(_tcp_sock, _chunks[p].get(), sizeof(FileChunk), 0);
         if (nb == -1) {
             std::cerr << "Error while writing to TCP socket (errno " << errno << ")" << std::endl;
         }
         else {
             _chunk_buffer.pop();
-            sent_chunk(p->id);
+            sent_chunk(p);
         }
     }
 }

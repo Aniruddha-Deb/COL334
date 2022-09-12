@@ -2,9 +2,15 @@
 
 #include <string>
 #include <iostream>
+#include <netdb.h>
+#include <arpa/inet.h>
+#include <sys/socket.h>
+#include <sys/types.h>
 #include <unordered_map>
 #include <unordered_set>
 #include <list>
+#include <fcntl.h>
+#include <fstream>
 #include <functional>
 
 #include "event_queue.hpp"
@@ -19,7 +25,7 @@ class Server {
     // client ID = file descriptor
     std::unordered_map<uint32_t,std::unique_ptr<ClientConnection>> _clients;
 
-    TCPServerSocket _tcp_ss;
+    uintptr_t _tcp_ss;
     uintptr_t _udp_ss;
 
     uint32_t _min_clients;
@@ -28,7 +34,6 @@ class Server {
     EventQueue _evt_queue;
 
     uint32_t _tot_chunks;
-    uint32_t _min_clients;
     bool _distributed_all_chunks = false;
     bool _requests_open = false;
 
@@ -43,7 +48,7 @@ class Server {
 
 public:
 
-    void Server(uint16_t port, uint32_t min_clients, size_t chunk_cache_size):
+    Server(uint16_t port, uint32_t min_clients, size_t chunk_cache_size):
         _min_clients{min_clients},
         _chunk_cache{chunk_cache_size} {
 
@@ -71,7 +76,7 @@ public:
         uintptr_t fd = socket(res->ai_family, res->ai_socktype, res->ai_protocol);
         if (fd == -1) {
             std::cout << "ERROR: failed to allocate UDP socket on port " << port << std::endl;
-            return;
+            return -1;
         }
         // set socket to be non-blocking
         fcntl(fd, F_SETFL, O_NONBLOCK);
@@ -87,7 +92,7 @@ public:
         // to the server, the server will delete the file and all transactions
         // taking place after that will be PSP
 
-        std::ifstream infile(filename);
+        std::ifstream infile(filepath);
 
         uint32_t id_ctr = 0;
 
@@ -111,7 +116,7 @@ public:
         for (auto& p : _clients) {
             p.second->send_control_msg({OPEN,0,0});
         }
-        _informed_clients = true;
+        _requests_open = true;
         std::cout << "Informed all clients that chunks were distributed" << std::endl;
     }
 
@@ -150,7 +155,7 @@ public:
             _chunk_requests[chunk_id].erase(client_id);
         }
         _client_requests.erase(client_id);
-        _deregister_client_from_queue(_clients[client_id]->get_tcp_fd());
+        deregister_from_queue(_clients[client_id]->get_tcp_fd());
         _clients.erase(client_id);
     }
 
@@ -173,7 +178,7 @@ public:
         // check if chunk is in LRU cache first
         std::shared_ptr<FileChunk> chunk = _chunk_cache.access(chunk_id);
         if (chunk != nullptr) {
-            _clients[client_id]->send_chunk_async(chunk);
+            _clients[client_id]->send_chunk(chunk);
         }
         else {
             // request the chunk
@@ -189,16 +194,17 @@ public:
 
             for (auto& p : _clients) {
                 if (p.first != client_id) {
-                    p.second->request_chunk(chunk_id);
+                    p.second->req_chunk(chunk_id);
                 }
             }
         }
     }
 
     void bind_callbacks_to_client(std::unique_ptr<ClientConnection>& conn) {
-        conn->on_rcv_chunk(std::bind(&Server::received_chunk,this,_1,_2));
-        conn->on_send_chunk(std::bind(&Server::sent_chunk,this,_1,_2,_3));
+        conn->on_recv_chunk(std::bind(&Server::received_chunk,this,_1));
+        conn->on_send_chunk(std::bind(&Server::sent_chunk,this,_1,_2));
         conn->on_disconnect(std::bind(&Server::client_disconnected,this,_1));
+
     }
 
     void distribute_chunks_to_client(std::unique_ptr<ClientConnection>& conn) {
@@ -216,17 +222,17 @@ public:
 
         struct sockaddr_in addr;
         socklen_t addr_size = sizeof(addr);
-        uintptr_t new_fd = ::accept(_fd, (struct sockaddr*)&addr, &addr_size);
+        uintptr_t new_fd = accept(_tcp_ss, (struct sockaddr*)&addr, &addr_size);
 
         // for now, let fd and client id be the same
         std::unique_ptr<ClientConnection> conn(new ClientConnection(new_fd, new_fd, _udp_ss, addr));
 
-        _evt_queue.register_to_queue(conn->get_tcp_fd());
+        register_to_queue(conn->get_tcp_fd());
         _client_requests.emplace(conn->get_client_id(), std::unordered_set<uint32_t>());
         bind_callbacks_to_client(conn);
 
         std::cout << "Sending registration data to client" << std::endl;
-        conn->send_control_msg({ REG, conn->get_client_id(), _tot_chunks });
+        conn->send_control_msg({ REG, (uint32_t)conn->get_client_id(), _tot_chunks });
 
         if (_distributed_all_chunks) {
             std::cout << "All chunks distributed already, letting client know" << std::endl;
@@ -276,8 +282,8 @@ public:
     }
 
     void shutdown_server() {
-        for (const auto& p : _fd_map) {
-            p.second->close();
+        for (const auto& p : _clients) {
+            p.second->close_client();
         }
 
         close(_tcp_ss);

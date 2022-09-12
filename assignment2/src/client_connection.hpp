@@ -2,6 +2,13 @@
 
 #include <queue>
 #include <memory>
+#include <string>
+#include <sys/types.h>
+#include <sys/socket.h>
+#include <arpa/inet.h>
+#include <netdb.h>
+#include <unistd.h>
+
 
 #include "protocol.hpp"
 
@@ -13,7 +20,6 @@ class ClientConnection {
     struct sockaddr_in _client_addr;
 
     std::function<void(std::shared_ptr<FileChunk>)> _recv_chunk_callback;
-    std::function<void(uint32_t, uint32_t)> _recv_chunk_req_callback;
     std::function<void(uint32_t, uint32_t)> _send_chunk_callback;
     std::function<void(uint32_t)> _disconnect_callback;
 
@@ -37,10 +43,6 @@ public:
         _recv_chunk_callback = cb;
     }
 
-    void on_recv_chunk_req(std::function<void(uint32_t, uint32_t)> cb) {
-        _recv_chunk_req_callback = cb;
-    }
-
     void on_send_chunk(std::function<void(uint32_t, uint32_t)> cb) {
         _send_chunk_callback = cb;
     }
@@ -49,7 +51,7 @@ public:
         _disconnect_callback = cb;
     }
 
-    void send_control_msg(ControlMessage& msg) {
+    void send_control_msg(ControlMessage msg) {
         _control_msg_buffer.push(msg);
     }
 
@@ -89,4 +91,4 @@ public:
     struct sockaddr_in get_addr() {
         return _client_addr;
     }
-}
+};
