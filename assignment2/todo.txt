@@ -1,0 +1,7 @@
+Linux:
+- Linux epoll evt queue implementation
+- Linux build system
+
+- Start report!
+  - Explain design in detail
+  - Motivation for non-blocking sockets
