@@ -21,6 +21,7 @@ class ClientConnection {
 
     std::function<void(std::shared_ptr<FileChunk>)> _recv_chunk_callback;
     std::function<void(uint32_t, uint32_t)> _send_chunk_callback;
+    std::function<void(uint32_t, uint32_t)> _recv_chunk_req_callback;
     std::function<void(uint32_t)> _disconnect_callback;
 
     std::queue<ControlMessage> _control_msg_buffer;
@@ -45,6 +46,10 @@ public:
 
     void on_send_chunk(std::function<void(uint32_t, uint32_t)> cb) {
         _send_chunk_callback = cb;
+    }
+
+    void on_recv_chunk_request(std::function<void(uint32_t, uint32_t)> cb) {
+        _recv_chunk_req_callback = cb;
     }
 
     void on_disconnect(std::function<void(uint32_t)> cb) {

@@ -1,8 +1,14 @@
-// this uses a 
+// this uses a UDP control layer over a TCP data layer
 
 #include <sys/socket.h>
 #include <errno.h>
 #include "client.hpp"
+
+void Client::configure_tcp(uintptr_t tcp_fd) {
+    // set socket low-water mark value for input to be the size of one file chunk
+    const int sock_recv_lwm = sizeof(FileChunk);
+    setsockopt(_tcp_sock, SOL_SOCKET, SO_RCVLOWAT, &sock_recv_lwm, sizeof(sock_recv_lwm));
+}
 
 void Client::can_read_TCP() {
     std::shared_ptr<FileChunk> c(new FileChunk);
