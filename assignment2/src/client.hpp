@@ -7,6 +7,7 @@
 #include <netdb.h>
 #include <string>
 #include <iostream>
+#include <errno.h>
 #include <unordered_map>
 #include <unordered_set>
 #include <queue>
@@ -41,7 +42,7 @@ class Client {
 
     uint32_t _client_id;
     uint32_t _num_chunks;
-    uint32_t _num_rcvd_chunks;
+    uint32_t _num_rcvd_chunks = 0;
 
     std::vector<std::shared_ptr<FileChunk>> _chunks;
 
@@ -53,7 +54,7 @@ class Client {
     // sequentially go over them. If we have the chunk, then ignore. 
     std::vector<uint32_t> _req_sequence;
 
-    size_t _next_chunk_idx;
+    size_t _next_chunk_idx = 0;
 
 public:
 
@@ -61,6 +62,11 @@ public:
 
         struct addrinfo* dest_addr = addr_info(server_addr, server_port, SOCK_STREAM);
         _tcp_sock = create_socket(dest_addr);
+
+        if (_tcp_sock == -1) {
+            std::cout << "Could not make TCP socket" << std::endl;
+            return;
+        }
 
         // set socket low-water mark value for input to be the size of one file chunk
         const int sock_recv_lwm = sizeof(FileChunk);
@@ -77,7 +83,14 @@ public:
         // we use this to initialize UDP, as we want it to be bound at the same
         // port as TCP is
         dest_addr->ai_socktype = SOCK_DGRAM;
+        dest_addr->ai_protocol = IPPROTO_UDP;
         _udp_sock = create_socket(dest_addr);
+
+        if (_udp_sock == -1) {
+            std::cout << "Could not make UDP socket" << std::endl;
+            return;
+        }
+
         bind(_udp_sock, (struct sockaddr*)&src_addr, len);
 
         // connect UDP socket now
@@ -100,13 +113,34 @@ public:
         hints.ai_socktype = socktype;
         getaddrinfo(addr.c_str(), std::to_string(port).c_str(), &hints, &res);
 
+        // if (res->ai_socktype == SOCK_STREAM) {
+        //     std::cout << "applied TCP_SOCK info" << std::endl;
+        // }
+        // else if (res->ai_socktype == SOCK_DGRAM) {
+        //     std::cout << "applied UDP_SOCK info" << std::endl;
+        // }
+        // else {
+        //     std::cout << "couldn't set AI protocol" << std::endl;
+        // }
+
         return res;
     }
 
     uintptr_t create_socket(struct addrinfo* res) {
+
+        if (res->ai_socktype == SOCK_STREAM) {
+            std::cout << "Creating TCP socket" << std::endl;
+        }
+        else if (res->ai_socktype == SOCK_DGRAM) {
+            std::cout << "Creating UDP socket" << std::endl;
+        }
+        else {
+            std::cout << "res: ai_protocol doesn't exist" << std::endl;
+        }
+
         uintptr_t fd = socket(res->ai_family, res->ai_socktype, res->ai_protocol);
         if (fd == -1) {
-            std::cout << "ERROR: failed to allocate socket" << std::endl;
+            std::cout << "ERROR: failed to allocate socket (errno " << errno << ")" << std::endl;
             return -1;
         }
         // set socket to be non-blocking

@@ -24,7 +24,7 @@ int main(int argc, char** argv) {
         std::cout << "missing argument: file to share" << std::endl;
     }
 
-    Server srv(15000, 5, 1000);
+    Server srv(15000, 2, 100);
     srv.load_file(std::string(argv[1])); 
     srv.run(running);
 
