@@ -22,13 +22,14 @@ using namespace std::placeholders;
 
 class Server {
 
-    // client ID = file descriptor
     std::unordered_map<uint32_t,std::unique_ptr<ClientConnection>> _clients;
+    std::unordered_map<uintptr_t,uint32_t> _tcp_map;
 
     uintptr_t _tcp_ss;
     uintptr_t _udp_ss;
 
     uint32_t _min_clients;
+    uint32_t _next_client_id = 0;
 
     LRUCache<uint32_t,std::shared_ptr<FileChunk>> _chunk_cache;
     EventQueue _evt_queue;
@@ -225,7 +226,8 @@ public:
         uintptr_t new_fd = accept(_tcp_ss, (struct sockaddr*)&addr, &addr_size);
 
         // for now, let fd and client id be the same
-        std::unique_ptr<ClientConnection> conn(new ClientConnection(new_fd, new_fd, _udp_ss, addr));
+        _tcp_map[new_fd] = _next_client_id;
+        std::unique_ptr<ClientConnection> conn(new ClientConnection(_next_client_id++, new_fd, _udp_ss, addr));
 
         register_to_queue(conn->get_tcp_fd());
         _client_requests.emplace(conn->get_client_id(), std::unordered_set<uint32_t>());
@@ -271,9 +273,9 @@ public:
                         }
                     }
                 }
-                else if (_clients.find(e.ident) != _clients.end()) {
-                    if (e.filter == EVFILT_READ) _clients[e.ident]->can_read_TCP();
-                    if (e.filter == EVFILT_WRITE) _clients[e.ident]->can_write_TCP();
+                else if (_tcp_map.find(e.ident) != _tcp_map.end()) {
+                    if (e.filter == EVFILT_READ) _clients[_tcp_map[e.ident]]->can_read_TCP();
+                    if (e.filter == EVFILT_WRITE) _clients[_tcp_map[e.ident]]->can_write_TCP();
                 }
             }
         }
