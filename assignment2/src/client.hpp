@@ -6,12 +6,15 @@
 #include <fcntl.h>
 #include <netdb.h>
 #include <string>
+#include <cstring>
+#include <algorithm>
 #include <iostream>
 #include <errno.h>
 #include <unordered_map>
 #include <unordered_set>
 #include <queue>
 #include <random>
+#include <memory>
 #include <fstream>
 #include <chrono>
 #include <functional>

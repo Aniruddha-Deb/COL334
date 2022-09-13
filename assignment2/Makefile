@@ -10,6 +10,9 @@ else
 	CPPFLAGS := $(NORMAL_FLAGS)
 endif
 
+CPPFLAGS += -I/usr/include/kqueue
+LFLAGS += -lkqueue
+
 SRC_SERVER := src/server.cpp
 SRC_CLIENT := src/client.cpp
 

@@ -3,6 +3,7 @@
 #include <queue>
 #include <memory>
 #include <string>
+#include <functional>
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <arpa/inet.h>

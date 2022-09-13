@@ -1,6 +1,7 @@
 #pragma once
 
 #include <string>
+#include <cstring>
 #include <iostream>
 #include <netdb.h>
 #include <arpa/inet.h>
@@ -256,6 +257,7 @@ public:
 
         while (running) {
             std::vector<event_t> evts = _evt_queue.get_events();
+            std::cout << evts.size() << std::endl;
 
             if (_distributed_all_chunks and !_requests_open) {
                 open_requests();
