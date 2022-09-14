@@ -4,14 +4,19 @@ PEDANTIC_FLAGS := -g
 
 RM=rm
 
-ifeq ($(DEBUG), )
+ifeq ($(DEBUG),1)
 	CPPFLAGS := $(NORMAL_FLAGS) $(PEDANTIC_FLAGS)
 else
-	CPPFLAGS := $(NORMAL_FLAGS)
+	CPPFLAGS := $(NORMAL_FLAGS) -O3
 endif
 
-CPPFLAGS += -I/usr/include/kqueue
-LFLAGS += -lkqueue
+ifneq ($(OS),Windows_NT)
+	uname_os := $(shell uname)
+	ifneq ($(uname_os),Darwin)
+		CPPFLAGS += -I/usr/include/kqueue
+		LFLAGS += -lkqueue
+	endif
+endif
 
 SRC_SERVER := src/server.cpp
 SRC_CLIENT := src/client.cpp
@@ -55,6 +60,6 @@ obj/%.o: src/%.cpp Makefile
 	$(CPPC) $(CPPFLAGS) -MMD -MP $(INC) $(LIB) -c $< -o $@ $(LFLAGS)
 
 clean:
-	$(RM) $(OBJ_CLIENT) $(BIN_CLIENT) $(DEP_CLIENT) $(OBJ_SERVER) $(BIN_SERVER) $(DEP_SERVER)
+	$(RM) obj/* bin/*
 
 bin/%.o: src/%.cpp

@@ -158,6 +158,7 @@ public:
         }
         _client_requests.erase(client_id);
         deregister_from_queue(_clients[client_id]->get_tcp_fd());
+        _tcp_map.erase(_clients[client_id]->get_tcp_fd());
         _clients.erase(client_id);
     }
 
@@ -257,7 +258,6 @@ public:
 
         while (running) {
             std::vector<event_t> evts = _evt_queue.get_events();
-            std::cout << evts.size() << std::endl;
 
             if (_distributed_all_chunks and !_requests_open) {
                 open_requests();
@@ -269,7 +269,7 @@ public:
                 }
                 else if (e.ident == _udp_ss) {
                     if (e.filter == EVFILT_READ) can_read_UDP();
-                    if (e.filter == EVFILT_WRITE) {
+                    else if (e.filter == EVFILT_WRITE) {
                         for (auto& p : _clients) {
                             p.second->can_write_UDP();
                         }
@@ -277,7 +277,7 @@ public:
                 }
                 else if (_tcp_map.find(e.ident) != _tcp_map.end()) {
                     if (e.filter == EVFILT_READ) _clients[_tcp_map[e.ident]]->can_read_TCP();
-                    if (e.filter == EVFILT_WRITE) _clients[_tcp_map[e.ident]]->can_write_TCP();
+                    else if (e.filter == EVFILT_WRITE) _clients[_tcp_map[e.ident]]->can_write_TCP();
                 }
             }
         }
