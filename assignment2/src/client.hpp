@@ -26,6 +26,8 @@ using namespace std::literals;
 
 using udpaddr_t = struct sockaddr_in;
 
+extern volatile bool running;
+
 class Client {
 
     uintptr_t _tcp_sock;
@@ -50,7 +52,7 @@ class Client {
     std::vector<std::shared_ptr<FileChunk>> _chunks;
 
     std::queue<uint32_t> _chunk_buffer;
-    std::queue<uint32_t> _request_buffer;
+    std::queue<ControlMessage> _control_msg_buffer;
 
     std::queue<std::shared_ptr<FileChunk>> _recv_chunk_cache;
 
@@ -76,7 +78,13 @@ public:
         configure_tcp(_tcp_sock);
 
         // connect TCP socket
-        connect(_tcp_sock, dest_addr->ai_addr, dest_addr->ai_addrlen);
+        int err = connect(_tcp_sock, dest_addr->ai_addr, dest_addr->ai_addrlen);
+        if (err == -1) {
+            std::cout << "Could not connect socket (errno " << errno << ")" << std::endl;
+            running = false;
+            return;
+            //err = connect(_tcp_sock, dest_addr->ai_addr, dest_addr->ai_addrlen);
+        }
 
         // get TCP socket local address
         struct sockaddr_in src_addr;
@@ -94,15 +102,26 @@ public:
             return;
         }
 
-        bind(_udp_sock, (struct sockaddr*)&src_addr, len);
+        err = bind(_udp_sock, (struct sockaddr*)&src_addr, len);
+        if (err == -1) {
+            std::cout << "Could not bind UDP socket (errno " << errno << ")" << std::endl;
+            running = false;
+            return;
+        }
 
         // connect UDP socket now
-        connect(_udp_sock, dest_addr->ai_addr, dest_addr->ai_addrlen);
+        err = connect(_udp_sock, dest_addr->ai_addr, dest_addr->ai_addrlen);
+        if (err == -1) {
+            std::cout << "Could not connect socket (errno " << errno << ")" << std::endl;
+            running = false;
+            return;
+        }
 
-        // can finally free dest_addr now
-        freeaddrinfo(dest_addr);
+        // set socket(s) to be non-blocking now
+        fcntl(_tcp_sock, F_SETFL, O_NONBLOCK);
+        fcntl(_udp_sock, F_SETFL, O_NONBLOCK);
 
-        create_evt_queue();
+        setup_evt_queue();
 
         std::cout << "Created client and connected to server" << std::endl;
     }
@@ -115,16 +134,6 @@ public:
         hints.ai_family = AF_INET;
         hints.ai_socktype = socktype;
         getaddrinfo(addr.c_str(), std::to_string(port).c_str(), &hints, &res);
-
-        // if (res->ai_socktype == SOCK_STREAM) {
-        //     std::cout << "applied TCP_SOCK info" << std::endl;
-        // }
-        // else if (res->ai_socktype == SOCK_DGRAM) {
-        //     std::cout << "applied UDP_SOCK info" << std::endl;
-        // }
-        // else {
-        //     std::cout << "couldn't set AI protocol" << std::endl;
-        // }
 
         return res;
     }
@@ -146,12 +155,13 @@ public:
             std::cout << "ERROR: failed to allocate socket (errno " << errno << ")" << std::endl;
             return -1;
         }
-        // set socket to be non-blocking
-        fcntl(fd, F_SETFL, O_NONBLOCK);
+        else {
+            std::cout << "Got socket (fd = " << fd << ")" << std::endl;
+        }
         return fd;
     }
 
-    void create_evt_queue() {
+    void setup_evt_queue() {
         _evt_queue.add_event(_tcp_sock, EVFILT_READ);
         _evt_queue.add_event(_tcp_sock, EVFILT_WRITE);
         _evt_queue.add_event(_udp_sock, EVFILT_READ);
@@ -213,7 +223,7 @@ public:
 
     void received_chunk(std::shared_ptr<FileChunk> chunk) {
 
-        // TODO if we receive a chunk while we're not registered, what do we do?
+        // If we receive a chunk while we're not registered, what do we do?
         // Solution: cache the chunk, and once we're registered, insert the 
         // chunks in the cache into the chunk map
 
@@ -237,17 +247,14 @@ public:
     }
 
     void disconnected() {
-        // TODO find out where to save file, either on disconnect or somewhere else
-        // is this for abnormal disconnects, or if the server bumps us off. 
-        // For abnormal disconnects, we'd need to continue downloading the file
-        // hmmm....
-        //
-        // Let's assume this is called only for abnormal disconnects, otherwise 
-        // we're the ones who disconnect from the server (in general).
-        // so, we'll have to reconnect to the server now and continue obtaining
-        // chunks as before.
+        // Let's assume abnormal disconnects on TCP are rare, and this is only
+        // called in the event that the server bumps us off. 
 
-        std::cout << "Disconnected, TODO implement this" << std::endl;
+        // simply set running to false and disconnect.
+
+        std::cout << "Disconnected from server" << std::endl;
+        running = false;
+
     }
 
     void clear_chunk_cache() {
@@ -279,7 +286,7 @@ public:
     // send requests/queue
 
     void request_chunk(uint32_t chunk_id) {
-        _request_buffer.push(chunk_id);
+        _control_msg_buffer.push({REQ,_client_id,chunk_id});
     }
 
     void send_chunk(uint32_t chunk_id) {
@@ -288,19 +295,33 @@ public:
 
     void periodic_resend_requests() {
         auto curr_time = std::chrono::high_resolution_clock::now();
-        // for (auto p : _chunk_request_times) {
-        //     std::cout << p.first << "," << (curr_time-p.second)/1ms << std::endl;
-        // }
 
-        for (auto it = _chunk_request_times.cbegin(); it != _chunk_request_times.cend(); ) {
-            if ((curr_time-it->second)/1ms > 5000) {
-                // re-request chunk
-                _req_sequence.push_back(it->first);
-                _chunk_request_times.erase(it++);
-                continue;
-            }     
-            else {
-                ++it;
+        if (!_registered) {
+            // send a registration request to the server; the registration packet
+            // might have been lost somewhere
+            std::cout << "Not registered, trying to send a request" << std::endl;
+            _control_msg_buffer.push({REG,0,0});
+        }
+        else if (!_can_request and _registered) {
+            std::cout << "Checking if can request" << std::endl;
+            _control_msg_buffer.push({OPEN,_client_id,0});
+        }
+        else if (_registered and _can_request) {
+
+            // for (auto p : _chunk_request_times) {
+            //     std::cout << p.first << "," << (curr_time-p.second)/1ms << std::endl;
+            // }
+
+            for (auto it = _chunk_request_times.cbegin(); it != _chunk_request_times.cend(); ) {
+                if ((curr_time-it->second)/1ms > 5000) {
+                    // re-request chunk
+                    _req_sequence.push_back(it->first);
+                    _chunk_request_times.erase(it++);
+                    continue;
+                }     
+                else {
+                    ++it;
+                }
             }
         }
     }
@@ -355,6 +376,10 @@ public:
 
         }
 
+        // shutdown things here
+        _evt_queue.close();
+        close(_tcp_sock);
+        close(_udp_sock);
     }
 
 };

@@ -8,7 +8,6 @@ typedef struct kevent event_t;
 class EventQueue {
 
     int _kq;
-    //std::unordered_set<std::pair<uintptr_t,int16_t>> _evtset;
 
 public:
     EventQueue() {
@@ -19,7 +18,6 @@ public:
         event_t evt;
         EV_SET(&evt, fd, filter, EV_ADD, 0, 0, NULL);
         kevent(_kq, &evt, 1, NULL, 0, NULL);
-        //_evtset.insert({fd,filter});
     }
 
     void add_timer_event(uintptr_t fd, uint32_t period_in_ms) {
@@ -32,13 +30,9 @@ public:
         event_t evt;
         EV_SET(&evt, fd, filter, EV_DELETE, 0, 0, NULL);
         kevent(_kq, &evt, 1, NULL, 0, NULL);
-        //_evtset.erase({fd,filter});
     }
 
     std::vector<event_t> get_events() {
-        // Hmm, returning a vector of structs....
-        // is this the right way to do this?
-        // how do we check if move semantics are kicking in
         event_t evts[64];
         int n_evts = kevent(_kq, NULL, 0, evts, 64, NULL);
 

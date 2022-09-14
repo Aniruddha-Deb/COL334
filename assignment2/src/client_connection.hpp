@@ -22,7 +22,7 @@ class ClientConnection {
 
     std::function<void(std::shared_ptr<FileChunk>)> _recv_chunk_callback;
     std::function<void(uint32_t, uint32_t)> _send_chunk_callback;
-    std::function<void(uint32_t, uint32_t)> _recv_chunk_req_callback;
+    std::function<void(ControlMessage, struct sockaddr_in)> _recv_control_msg_callback;
     std::function<void(uint32_t)> _disconnect_callback;
 
     std::queue<ControlMessage> _control_msg_buffer;
@@ -49,8 +49,8 @@ public:
         _send_chunk_callback = cb;
     }
 
-    void on_recv_chunk_request(std::function<void(uint32_t, uint32_t)> cb) {
-        _recv_chunk_req_callback = cb;
+    void on_recv_control_msg(std::function<void(ControlMessage,struct sockaddr_in)> cb) {
+        _recv_control_msg_callback = cb;
     }
 
     void on_disconnect(std::function<void(uint32_t)> cb) {
@@ -82,7 +82,7 @@ public:
         return _udp_fd;
     }
 
-    uintptr_t get_client_id() {
+    uint32_t get_client_id() {
         return _client_id;
     }
 

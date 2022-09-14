@@ -26,6 +26,11 @@ class Server {
     std::unordered_map<uint32_t,std::unique_ptr<ClientConnection>> _clients;
     std::unordered_map<uintptr_t,uint32_t> _tcp_map;
 
+    // we look this up if our registration packet drops.
+    // yes, this is overengineered af.
+    std::unordered_map<uint64_t,uint32_t> _client_id_contingency_lookup;
+    std::unordered_map<uint32_t,uint64_t> _client_id_contingency_reverse_lookup;
+
     uintptr_t _tcp_ss;
     uintptr_t _udp_ss;
 
@@ -77,12 +82,22 @@ public:
 
         uintptr_t fd = socket(res->ai_family, res->ai_socktype, res->ai_protocol);
         if (fd == -1) {
-            std::cout << "ERROR: failed to allocate UDP socket on port " << port << std::endl;
+            std::cout << "ERROR: failed to allocate socket on port " << port << std::endl;
             return -1;
         }
+
+        // allow reuse of the address before the WAIT_TIME period is over. This 
+        // lets the server start/stop quickly on the same port
+        // (but also makes TCP less reliable)
+        const int reuse = 1;
+        setsockopt(fd, SOL_SOCKET, SO_REUSEADDR, &reuse, sizeof(reuse));
+
         // set socket to be non-blocking
+        int err = bind(fd, res->ai_addr, res->ai_addrlen);
+        if (err == -1) {
+            std::cout << "Could not bind socket to port (errno " << errno << ")" << std::endl;
+        }
         fcntl(fd, F_SETFL, O_NONBLOCK);
-        bind(fd, res->ai_addr, res->ai_addrlen);
         freeaddrinfo(res);
 
         return fd;
@@ -156,6 +171,8 @@ public:
         for (auto chunk_id : _client_requests[client_id]) {
             _chunk_requests[chunk_id].erase(client_id);
         }
+        _client_id_contingency_lookup.erase(_client_id_contingency_reverse_lookup[client_id]);
+        _client_id_contingency_reverse_lookup.erase(client_id);
         _client_requests.erase(client_id);
         deregister_from_queue(_clients[client_id]->get_tcp_fd());
         _tcp_map.erase(_clients[client_id]->get_tcp_fd());
@@ -174,6 +191,27 @@ public:
         // then store the chunk in the LRU cache (if it doesn't already exist)
         if (_chunk_cache.access(chunk->id) == nullptr) {
             _chunk_cache.insert(chunk->id, chunk);
+        }
+    }
+
+    void received_control_msg(ControlMessage m, struct sockaddr_in sender) {
+        if (m.msgtype == REQ) {
+            received_chunk_request(m.client_id, m.chunk_id);
+        }
+        else if (m.msgtype == OPEN) {
+            if (_distributed_all_chunks) {
+                _clients[m.client_id]->send_control_msg({OPEN,0,0});
+            }
+        }
+        else if (m.msgtype == REG) {
+            if (_client_id_contingency_lookup.find(ipv4_to_int64(sender)) != 
+                    _client_id_contingency_lookup.end()) {
+                auto& client = _clients[_client_id_contingency_lookup[ipv4_to_int64(sender)]];
+                client->send_control_msg({REG,client->get_client_id(),_tot_chunks});
+            }
+            else {
+                std::cout << "Received unsolicited register message" << std::endl;
+            }
         }
     }
 
@@ -205,7 +243,7 @@ public:
 
     void bind_callbacks_to_client(std::unique_ptr<ClientConnection>& conn) {
         conn->on_recv_chunk(std::bind(&Server::received_chunk,this,_1));
-        conn->on_recv_chunk_request(std::bind(&Server::received_chunk_request,this,_1,_2));
+        conn->on_recv_control_msg(std::bind(&Server::received_control_msg,this,_1,_2));
         conn->on_send_chunk(std::bind(&Server::sent_chunk,this,_1,_2));
         conn->on_disconnect(std::bind(&Server::client_disconnected,this,_1));
     }
@@ -221,11 +259,23 @@ public:
         }
     }
 
+    static uint64_t ipv4_to_int64(struct sockaddr_in s) {
+        // we're not converting to system byte order
+        // which is ok: all we need is a unique id, we're not going to reconstruct.
+        return (((uint64_t)s.sin_addr.s_addr)<<16) | s.sin_port;
+    }
+
     void accept_new_client() {
 
         struct sockaddr_in addr;
         socklen_t addr_size = sizeof(addr);
         uintptr_t new_fd = accept(_tcp_ss, (struct sockaddr*)&addr, &addr_size);
+
+        uint64_t intaddr = ipv4_to_int64(addr);
+        _client_id_contingency_lookup[intaddr] = new_fd;
+        // the reverse lookup helps delete from the lookup in O(1) when a client 
+        // disconnects, otherwise the lookup table would not stop growing.
+        _client_id_contingency_reverse_lookup[new_fd] = intaddr;
 
         // for now, let fd and client id be the same
         _tcp_map[new_fd] = _next_client_id;
@@ -236,7 +286,7 @@ public:
         bind_callbacks_to_client(conn);
 
         std::cout << "Sending registration data to client" << std::endl;
-        conn->send_control_msg({ REG, (uint32_t)conn->get_client_id(), _tot_chunks });
+        conn->send_control_msg({ REG, conn->get_client_id(), _tot_chunks });
 
         if (_distributed_all_chunks) {
             std::cout << "All chunks distributed already, letting client know" << std::endl;
@@ -264,7 +314,11 @@ public:
             }
 
             for (const auto& e : evts) {
-                if (e.ident == _tcp_ss) {
+                if (e.flags & EV_EOF) {
+                    std::cout << "Beep bop, bop beep!" << std::endl;
+                }
+                else if (e.ident == _tcp_ss) {
+                    std::cout << "Registering new client" << std::endl;
                     accept_new_client();
                 }
                 else if (e.ident == _udp_ss) {

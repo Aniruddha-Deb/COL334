@@ -7,11 +7,18 @@
 \usepackage{varwidth}
 \usepackage{tabularx}
 \usepackage{amsmath}
+\usepackage{float}
+\usepackage{parskip}
 \usepackage{hyperref}
 \usepackage{enumitem}
 \usepackage{graphicx}
 \usepackage{tcolorbox}
 \renewcommand*\familydefault{\sfdefault}
+
+\usepackage{textcomp,    % for \textlangle and \textrangle macros
+            xspace}
+\newcommand\la{\textlangle\xspace}  % set up short-form macros
+\newcommand\ra{\textrangle\xspace}
 
 \newtcolorbox{mybox}[3][]
 {
@@ -31,7 +38,10 @@
     pdfpagemode=FullScreen,
 }
 
-\title{\textbf{COL334 Assignment 2}}
+\title{%
+  \textbf{Trickle\footnote{The opposite of Torrent :)} : A PSP File Sharing Protocol} \\
+  {\large (A report for Assignment 2 of COL334)}
+}
 \author{Aniruddha Deb \\ \texttt{2020CS10869}}
 \date{September 2022}
 
@@ -39,6 +49,102 @@
 
 \maketitle
 
+\tableofcontents
+
+\clearpage
+
+\section{Design}
+
+The design for trickle was guided by three core principles:
+\begin{enumerate}
+\item \emph{Speed:} The bandwidth should be the bottleneck in file downloads, not the server/client connections, or the software layer
+\item \emph{Scalability:} Given a large enough server cache and ample bandwidth/processing power at the server, the server should be able to concurrently service a large number of clients
+\item \emph{Reliability:} Irrespective of the Control layer protocol used (UDP or TCP), control messages should achieve their end purpose. This is different from stating all control messages should reach their target: if we don't receive a control message we're expecting, we re-request it until we get it.
+\end{enumerate}
+
+More details on how these principles were incorporated are given in the following sections
+
+\subsection{Design Decisions}
+
+Following from above, \emph{C++} was chosen as the language of choice because of it's speed and closeness to the system. Sockets are implemented as syscalls in C, using the POSIX socket library (as a result, this implementation doesn't work on windows). Interfaces were designed in C++ to abstract away the underlying C code for memory safety and portability (more on this in the Code Layout section).
+
+To ensure scalability, \emph{We have to abandon the premise that one client will be serviced by one thread at the server}. Upon having a large number of threads, the OS would spend more time scheduling the threads rather than actually running the threads. This is a well-known, known in systems literature as the \href{https://en.wikipedia.org/wiki/C10k_problem#}{C10K problem} (the ability to concurrently handle 10,000 clients at once).
+
+The solution to this problem is to use a design pattern known as the \href{https://dzone.com/articles/understanding-reactor-pattern-thread-based-and-eve}{Reactor Pattern}: rather than polling the sockets and waiting till we can read/write on them, we assign this task to the kernel. The kernel would then notify us of when a socket can be read to / written from, and we then read/write to the socket at this point. 
+
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=0.5\textwidth]{reactor_pattern.png}
+  \caption{The Reactor Design Pattern (Credits: \href{https://teskalabs.com/blog/building-high-performance-application-servers}{TeskaLabs})}
+\end{figure}
+
+The Reactor design pattern is implemented in our code using the \href{https://www.freebsd.org/cgi/man.cgi?query=kevent&apropos=0&sektion=0&manpath=FreeBSD+9.0-RELEASE&arch=default&format=html}{kqueue} library. kqueue is the default event queue on MacOS/BSD (my platform), and for other platforms, \href{https://github.com/mheily/libkqueue}{libkqueue} provides a compatiability layer over the underlying event queue library used by the kernel (Linux uses epoll, Windows uses IOCP)
+
+For our third requirement, we register a timer event with our event queue. The timer event triggers a callback every second, and in this callback, we check if there are any stale chunk requests in our buffers (which haven't been responded to by the server). If there are, we clear these requests out and send them again, assuming that they have dropped.
+
+\subsection{Design}
+
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=0.6\textwidth]{protocol.pdf}
+  \caption{Flow diagram of the trickle protocol (Red - Control layer, Blue - Data layer)}
+\end{figure}
+
+Trickle uses two layers: a control layer for sending messages, and a data layer for sending chunks. The protocols used for them vary: Part 1 of the assignment implements the control layer in UDP, and the data layer in TCP, while part 2 does the opposite. We refer to different implementations by \emph{the protocol used for the control layer}. Hence \texttt{server\_udp} represents a server using UDP for control and TCP for data, and \texttt{client\_tcp} represents a client using TCP for control and UDP for data. 
+
+Two types of messages, Control messages and File Chunks are transferred in the control and data layers respectively. The structure of these chunks is given in fig. 3.
+
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=0.9\textwidth]{messages.pdf}
+  \caption{Messages used in trickle: ControlMessage and FileChunk}
+\end{figure}
+
+The control messages can take the following values:
+\begin{center}
+\begin{tabular}{|c|c|c|}
+\hline
+msgtype & client\_id & chunk\_id \\
+\hline
+REQ     & \la client id \ra & \la chunk id \ra \\
+OPEN    &     -     &     -    \\
+REG     & \la client id \ra & \la num chunks \ra \\
+\hline
+\end{tabular}
+\end{center}
+
+The FileChunk has 4 bytes for the id, 2 bytes for the size of the data in the chunk and 1024 bytes for the data itself. Note that a chunk can have less than 1024 bytes, if it's the last chunk in the file. For proper reconstruction of the file, the size field is important, as it signifies how many bytes of the data are meaningful.
+
+\subsection{Code Layout}
+
+To accomodate the different implementations, a modular design had to be used: we define three major interfaces, \textbf{Client} (representing the client object), \textbf{Server} (representing the server object) and \textbf{ClientConnection} (representing a connection to a single client on the server side). An overview is given in fig. 4.
+
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=0.9\textwidth]{uml.pdf}
+  \caption{UML diagram of the major interfaces and their implementations}
+\end{figure}
+
+% describe what each thing should do and stuff
+
+\subsection{Handling Packet Drops}
+
+\subsection{Installation and Execution}
+
+\begin{mybox}{red}{NOTE}
+The code was tested on Mac (MacOS 10.15.6, g++ v11.2.3) and Linux (Manjaro 21.3, g++ v12.1.1, libkqueue v2.6.1). This program is not compatiable with Windows, and also requires building and installing libkqueue from the GitHub source if on Linux (\texttt{apt-get}/\texttt{pacman}) have outdated versions, which have bugs.
+\end{mybox}
+
+% notes on how to install and execute, along with command line options 
+
+\section{Analysis}
+\subsection{RTT}
+\subsection{RTT for separate packets}
+\subsection{Load Benchmarks}
+\subsection{Cache Size Benchmarks}
+\subsection{Cache Request Sequence Benchmarks}
+
+\section{Food for Thought}
 
 
 

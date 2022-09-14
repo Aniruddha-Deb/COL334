@@ -1,7 +1,3 @@
-Linux:
-- Linux epoll evt queue implementation
-- Linux build system
-
-- Start report!
-  - Explain design in detail
-  - Motivation for non-blocking sockets
+- didn't register
+- didn't get open message
+- didn't get chunk (ok)

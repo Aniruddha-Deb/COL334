@@ -20,7 +20,7 @@ void Client::can_read_TCP() {
     else if (nb == 0) {
         // this happens when the socket has disconnected
         // have a callback that detatches this socket from everything
-        disconnected();
+        // disconnected();
     }
     else {
         // handle the event where we don't read a complete filechunk in...
@@ -58,9 +58,8 @@ void Client::can_write_TCP() {
 }
 
 void Client::can_write_UDP() {
-    if (!_request_buffer.empty()) {
-        uint32_t chunk_id = _request_buffer.front(); // not worrying about network byte order for now.
-        ControlMessage c{REQ, _client_id, chunk_id};
+    if (!_control_msg_buffer.empty()) {
+        ControlMessage c = _control_msg_buffer.front(); // not worrying about network byte order for now.
         int nb = sendto(_udp_sock, &c, sizeof(c), 0, nullptr, 0);
 
         if (nb == -1) {
@@ -69,7 +68,7 @@ void Client::can_write_UDP() {
         else {
             // datagram oriented protocol, so no worries here
             //std::cout << "Wrote " << data << " (" << nb << " bytes) to UDP socket " << ntohs(p.first.sin_port) << std::endl;
-            _request_buffer.pop();
+            _control_msg_buffer.pop();
         }
     }
 }

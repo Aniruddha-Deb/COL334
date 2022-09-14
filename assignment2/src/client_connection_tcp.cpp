@@ -5,6 +5,7 @@
 #include <iostream>
 
 #include "client_connection.hpp"
+#include "server.hpp"
 
 ClientConnection::ClientConnection(
     uint32_t client_id, uintptr_t tcp_fd, uintptr_t udp_fd, struct sockaddr_in client_addr):
@@ -47,9 +48,8 @@ void ClientConnection::can_read_TCP() {
         // have a callback that detatches this socket from everything
         close_client();
     }
-
     else {
-        _recv_chunk_req_callback(req_data.client_id, req_data.chunk_id);
+        _recv_control_msg_callback(req_data, _client_addr);
     }
 }
 
