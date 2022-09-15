@@ -314,7 +314,7 @@ public:
             _num_chunks = m.chunk_id;
             _registered = true;
 
-            init_chunk_request_sequence(true);
+            init_chunk_request_sequence(false);
             clear_chunk_cache();
             std::cout << "registered with client_id " << _client_id << std::endl;
         }
