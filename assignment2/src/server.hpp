@@ -41,6 +41,7 @@ class Server {
     EventQueue _evt_queue;
 
     uint32_t _tot_chunks;
+    uint32_t _clients_distributed_to = 0;
     bool _distributed_all_chunks = false;
     bool _requests_open = false;
 
@@ -206,8 +207,15 @@ public:
         else if (m.msgtype == REG) {
             if (_client_id_contingency_lookup.find(ipv4_to_int64(sender)) != 
                     _client_id_contingency_lookup.end()) {
-                auto& client = _clients[_client_id_contingency_lookup[ipv4_to_int64(sender)]];
-                client->send_control_msg({REG,client->get_client_id(),_tot_chunks});
+                int cid = _client_id_contingency_lookup[ipv4_to_int64(sender)];
+                std::cout << "Client with id " << cid << " requested registration data again" << std::endl;
+                auto& client = _clients[cid];
+                if (client != nullptr) {
+                    client->send_control_msg({REG,client->get_client_id(),_tot_chunks});
+                }
+                else {
+                    std::cout << "FATAL: internal conflict on client id = " << cid << std::endl;
+                }
             }
             else {
                 std::cout << "Received unsolicited register message" << std::endl;
@@ -250,13 +258,17 @@ public:
 
     void distribute_chunks_to_client(std::unique_ptr<ClientConnection>& conn) {
         int ctr = 0;
-        int chunk_lim = 1 + ((_tot_chunks-1)/_min_clients);
+        int n = _min_clients-_clients_distributed_to;
+        int m = _chunks_to_distribute.size();
+        int chunk_lim = m/n + (m%n>0?1:0); // number of chunks distributed can 
+                                           // vary by atmost one among clients
         while (!_chunks_to_distribute.empty() and ctr < chunk_lim) {
             conn->send_chunk(_chunks_to_distribute.front());
             _chunks_being_distributed.insert(_chunks_to_distribute.front()->id);
             _chunks_to_distribute.pop();
             ctr++;
         }
+        _clients_distributed_to++;
     }
 
     static uint64_t ipv4_to_int64(struct sockaddr_in s) {
@@ -272,10 +284,10 @@ public:
         uintptr_t new_fd = accept(_tcp_ss, (struct sockaddr*)&addr, &addr_size);
 
         uint64_t intaddr = ipv4_to_int64(addr);
-        _client_id_contingency_lookup[intaddr] = new_fd;
+        _client_id_contingency_lookup[intaddr] = _next_client_id;
         // the reverse lookup helps delete from the lookup in O(1) when a client 
         // disconnects, otherwise the lookup table would not stop growing.
-        _client_id_contingency_reverse_lookup[new_fd] = intaddr;
+        _client_id_contingency_reverse_lookup[_next_client_id] = intaddr;
 
         // for now, let fd and client id be the same
         _tcp_map[new_fd] = _next_client_id;
@@ -314,10 +326,7 @@ public:
             }
 
             for (const auto& e : evts) {
-                if (e.flags & EV_EOF) {
-                    std::cout << "Beep bop, bop beep!" << std::endl;
-                }
-                else if (e.ident == _tcp_ss) {
+                if (e.ident == _tcp_ss) {
                     std::cout << "Registering new client" << std::endl;
                     accept_new_client();
                 }

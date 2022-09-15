@@ -38,6 +38,8 @@ class Client {
 
     std::unordered_map<uint32_t, std::chrono::time_point<std::chrono::high_resolution_clock>>
         _chunk_request_times;
+    std::unordered_map<uint32_t, std::chrono::microseconds> 
+        _chunk_rtt_times;
 
     EventQueue _evt_queue;
 
@@ -63,9 +65,16 @@ class Client {
 
     size_t _next_chunk_idx = 0;
 
+    std::string _output_folder;
+    std::string _rtt_file_name;
+
+    std::function<void(void)> _save_file_callback;
+    bool _save_file_callback_bound = false;
+
 public:
 
-    Client(std::string server_addr, uint16_t server_port) {
+    Client(std::string server_addr, uint16_t server_port, std::string output_folder):
+           _output_folder{output_folder} {
 
         struct addrinfo* dest_addr = addr_info(server_addr, server_port, SOCK_STREAM);
         _tcp_sock = create_socket(dest_addr);
@@ -125,6 +134,12 @@ public:
 
         std::cout << "Created client and connected to server" << std::endl;
     }
+
+    void on_save_file(std::function<void(void)> save_file_callback) {
+        _save_file_callback = save_file_callback;
+        _save_file_callback_bound = true;
+    }
+
 
     struct addrinfo* addr_info(std::string& addr, uint16_t port, int socktype) {
         struct addrinfo hints;
@@ -193,14 +208,28 @@ public:
         // for now, we save everything as text files
         // (definetly not a good thing)
         std::cout << "Saving file" << std::endl;
-        std::string fname = "outfile_" + std::to_string(_client_id) + ".txt";
-        std::ofstream f(fname);
+        std::string outfile = _output_folder+"/outfile_"+std::to_string(_client_id)+".txt";
+        std::ofstream f(outfile);
 
         for (int i=0; i<_num_chunks; i++) {
             f.write(_chunks[i]->data, _chunks[i]->size);
         }
 
-        std::cout << "Received entire file, wrote to " << fname << std::endl;        
+        f.close();
+        if (_save_file_callback_bound) {
+            _save_file_callback();
+        }
+
+        std::cout << "Received entire file, wrote to " << outfile << std::endl;        
+    }
+
+    void save_RTT_times() {
+        std::ofstream out(_output_folder+"/rtt_"+std::to_string(_client_id)+".csv");
+        for (auto p : _chunk_rtt_times) {
+            out << p.first << "," << p.second.count() << std::endl;
+        }
+
+        out.close();
     }
 
     // implementation defined
@@ -226,6 +255,9 @@ public:
         // If we receive a chunk while we're not registered, what do we do?
         // Solution: cache the chunk, and once we're registered, insert the 
         // chunks in the cache into the chunk map
+        //
+        // why don't we just push this to chunks the minute we receive it?
+        // Because to init the chunks, we need the number of chunks. 
 
         if (!_registered) {
             _recv_chunk_cache.push(chunk);
@@ -233,14 +265,22 @@ public:
         else {
             if (_chunks[chunk->id] == nullptr) {
                 _chunks[chunk->id] = chunk;
-                if (_chunk_request_times.find(chunk->id) != _chunk_request_times.end()) 
+                if (_chunk_request_times.find(chunk->id) != _chunk_request_times.end()) {
+                    auto curr_time = std::chrono::high_resolution_clock::now();
+                    _chunk_rtt_times[chunk->id] = 
+                        std::chrono::duration_cast<std::chrono::microseconds>(
+                            curr_time - _chunk_request_times[chunk->id]
+                        );
                     _chunk_request_times.erase(chunk->id);
+                }
+
                 _num_rcvd_chunks++;
                 std::cout << "Received chunk " << chunk->id << ", have " << _num_rcvd_chunks << " chunks now." << std::endl;
             }
 
             if (_num_rcvd_chunks == _num_chunks and !_saved_file) {
                 save_file();
+                save_RTT_times();
                 _saved_file = true;
             }
         }
@@ -274,11 +314,11 @@ public:
             _num_chunks = m.chunk_id;
             _registered = true;
 
-            init_chunk_request_sequence(false);
+            init_chunk_request_sequence(true);
             clear_chunk_cache();
             std::cout << "registered with client_id " << _client_id << std::endl;
         }
-        else if (_chunks[m.chunk_id] != nullptr) {
+        else if (_registered and m.msgtype == REQ and _chunks[m.chunk_id] != nullptr) {
             send_chunk(m.chunk_id);
         }
     }
@@ -374,6 +414,10 @@ public:
                 // }
             }
 
+        }
+
+        if (!_saved_file) {
+            save_RTT_times();
         }
 
         // shutdown things here

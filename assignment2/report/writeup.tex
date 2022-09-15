@@ -129,6 +129,10 @@ To accomodate the different implementations, a modular design had to be used: we
 
 \subsection{Handling Packet Drops}
 
+\subsection{Client and Server Pseudocode}
+
+
+
 \subsection{Installation and Execution}
 
 \begin{mybox}{red}{NOTE}
@@ -138,11 +142,41 @@ The code was tested on Mac (MacOS 10.15.6, g++ v11.2.3) and Linux (Manjaro 21.3,
 % notes on how to install and execute, along with command line options 
 
 \section{Analysis}
-\subsection{RTT}
-\subsection{RTT for separate packets}
+
+\subsection{RTT averages}
+
+RTT avg UDP: 33423, RTT avg TCP: 21011
+
+\subsection{RTT averages across clients}
+
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=0.49\textwidth]{udp_plot.pdf}
+  \includegraphics[width=0.49\textwidth]{tcp_plot.pdf}
+  \caption{RTT averages for each chunk across clients}
+\end{figure}
+
 \subsection{Load Benchmarks}
+
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=0.6\textwidth]{time_clients.pdf}
+  \caption{Load statistics with cache size 100 (note that the y-axis is logarithmic)}
+\end{figure}
+
 \subsection{Cache Size Benchmarks}
-\subsection{Cache Request Sequence Benchmarks}
+
+
+
+\subsection{Client Request Sequence Benchmarks}
+
+55 ms mean
+
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=0.6\textwidth]{random_req.pdf}
+  \caption{Average chunk response times when requests are random}
+\end{figure}
 
 \section{Food for Thought}
 
