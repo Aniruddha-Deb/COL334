@@ -14,7 +14,7 @@ ifneq ($(OS),Windows_NT)
 	uname_os := $(shell uname)
 	ifneq ($(uname_os),Darwin)
 		CPPFLAGS += -I/usr/include/kqueue
-		LFLAGS += -lkqueue
+		LFLAGS += -lkqueue -lpthread
 	endif
 endif
 
