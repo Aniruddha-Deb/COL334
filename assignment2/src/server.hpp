@@ -50,6 +50,7 @@ class Server {
 
     // initial file chunk list
     std::queue<std::shared_ptr<FileChunk>> _chunks_to_distribute;
+    std::unordered_map<uint32_t, uint32_t> _authoritative_chunk_owners;
     std::unordered_set<uint32_t> _chunks_being_distributed;
     std::unordered_set<uint32_t> _chunks_distributed;
 
@@ -119,6 +120,7 @@ public:
             fptr->id = id_ctr;
             infile.read(fptr->data, 1024);
             fptr->size = infile.gcount();
+            _chunk_requests.emplace(id_ctr, std::unordered_set<uint32_t>());
             id_ctr++;
 
             _chunks_to_distribute.push(fptr);
@@ -150,9 +152,10 @@ public:
                 }
             }
         }
-
-        _chunk_requests[chunk_id].erase(client_id);
-        _client_requests[client_id].erase(chunk_id);
+        else {
+            _chunk_requests[chunk_id].erase(client_id);
+            _client_requests[client_id].erase(chunk_id);
+        }
     }
 
     void deregister_from_queue(uint32_t tcp_fd_handle) {
@@ -183,10 +186,8 @@ public:
     void received_chunk(std::shared_ptr<FileChunk> chunk) {
 
         // serve the people who needed the chunk first
-        if (_chunk_requests.find(chunk->id) != _chunk_requests.end()) {
-            for (auto c : _chunk_requests[chunk->id]) {
-                _clients[c]->send_chunk(chunk);
-            }
+        for (auto c : _chunk_requests[chunk->id]) {
+            _clients[c]->send_chunk(chunk);
         }
 
         // then store the chunk in the LRU cache (if it doesn't already exist)
@@ -223,29 +224,37 @@ public:
         }
     }
 
+    /*
+    
+    To reduce chunk request times, we need to do 2 things:
+    1. Reduce network load: request a chunk from the authoritative chunk owner only
+    2. Increase cache locality: for every client request not in cache, request the 
+       next k chunks as well
+    */
+
     void received_chunk_request(uint32_t client_id, uint32_t chunk_id) {
+        // sdfsstd::cout << "Received request for chunk " << chunk_id << std::endl;
         // check if chunk is in LRU cache first
         std::shared_ptr<FileChunk> chunk = _chunk_cache.access(chunk_id);
         if (chunk != nullptr) {
+            // std::cout << "Chunk exists in cache, sending" << std::endl;
             _clients[client_id]->send_chunk(chunk);
         }
+        else if (!_chunk_requests[chunk_id].empty()) {
+            // std::cout << "Chunk request is in the air" << std::endl;
+            // chunk request in the air, will alert when it comes back
+            _chunk_requests[chunk_id].insert(client_id);
+        }
         else {
-            // request the chunk
-            if (_chunk_requests.find(chunk_id) != _chunk_requests.end()) {
-                _chunk_requests[chunk_id].insert(client_id);
-            }
-            else {
-                std::unordered_set<uint32_t> v;
-                v.insert(client_id);
-                _chunk_requests[chunk_id] = v;
-            }
-            _client_requests[client_id].insert(chunk_id); // guaranteed to exist
-
-            for (auto& p : _clients) {
-                if (p.first != client_id) {
-                    p.second->req_chunk(chunk_id);
+            for (int i=0; i<10; i++) {
+                if (chunk_id+i < _tot_chunks) {
+                    // std::cout << "Requesting chunk " << chunk_id+i << " From client " << _authoritative_chunk_owners[chunk_id+i] << std::endl;
+                    _clients[_authoritative_chunk_owners[chunk_id+i]]->send_control_msg({REQ,client_id,chunk_id});
                 }
             }
+
+            _chunk_requests[chunk_id].insert(client_id);
+            _client_requests[client_id].insert(chunk_id);
         }
     }
 
@@ -265,6 +274,7 @@ public:
         while (!_chunks_to_distribute.empty() and ctr < chunk_lim) {
             conn->send_chunk(_chunks_to_distribute.front());
             _chunks_being_distributed.insert(_chunks_to_distribute.front()->id);
+            _authoritative_chunk_owners[_chunks_to_distribute.front()->id] = conn->get_client_id();
             _chunks_to_distribute.pop();
             ctr++;
         }

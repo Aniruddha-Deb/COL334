@@ -51,12 +51,12 @@ class Client {
     uint32_t _num_chunks;
     uint32_t _num_rcvd_chunks = 0;
 
-    std::vector<std::shared_ptr<FileChunk>> _chunks;
+    std::vector<std::unique_ptr<FileChunk>> _chunks;
 
     std::queue<uint32_t> _chunk_buffer;
     std::queue<ControlMessage> _control_msg_buffer;
 
-    std::queue<std::shared_ptr<FileChunk>> _recv_chunk_cache;
+    std::queue<std::unique_ptr<FileChunk>> _recv_chunk_cache;
 
     // chunk requests may be randomized across clients while testing
     // solution: have a random permutation of chunk id's that we'll use and then
@@ -191,7 +191,7 @@ public:
 
         for (uint32_t i=0; i<_num_chunks; i++) {
             _req_sequence[i] = i;
-            _chunks[i] = std::shared_ptr<FileChunk>(nullptr);
+            _chunks[i] = nullptr; // TODO zero check here
         }
 
         if (randomize) {
@@ -250,7 +250,7 @@ public:
         std::cout << "Sent chunk " << chunk_id << std::endl;
     }
 
-    void received_chunk(std::shared_ptr<FileChunk> chunk) {
+    void received_chunk(std::unique_ptr<FileChunk>&& chunk) {
 
         // If we receive a chunk while we're not registered, what do we do?
         // Solution: cache the chunk, and once we're registered, insert the 
@@ -259,23 +259,27 @@ public:
         // why don't we just push this to chunks the minute we receive it?
         // Because to init the chunks, we need the number of chunks. 
 
+        assert(chunk);
+
         if (!_registered) {
-            _recv_chunk_cache.push(chunk);
+            _recv_chunk_cache.push(std::move(chunk));
         }
         else {
-            if (_chunks[chunk->id] == nullptr) {
-                _chunks[chunk->id] = chunk;
-                if (_chunk_request_times.find(chunk->id) != _chunk_request_times.end()) {
+            assert(chunk);
+            const auto chunk_id = chunk->id;
+            std::cout << (chunk_id) << std::endl;
+            if (_chunks[chunk_id] == nullptr) {                
+                _chunks[chunk_id] = std::move(chunk);
+                if (_chunk_request_times.find(chunk_id) != _chunk_request_times.end()) {
                     auto curr_time = std::chrono::high_resolution_clock::now();
-                    _chunk_rtt_times[chunk->id] = 
+                    _chunk_rtt_times[chunk_id] = 
                         std::chrono::duration_cast<std::chrono::microseconds>(
-                            curr_time - _chunk_request_times[chunk->id]
+                            curr_time - _chunk_request_times[chunk_id]
                         );
-                    _chunk_request_times.erase(chunk->id);
+                    _chunk_request_times.erase(chunk_id);
                 }
-
                 _num_rcvd_chunks++;
-                std::cout << "Received chunk " << chunk->id << ", have " << _num_rcvd_chunks << " chunks now." << std::endl;
+                std::cout << "Received chunk " << chunk_id << ", have " << _num_rcvd_chunks << " chunks now." << std::endl;
             }
 
             if (_num_rcvd_chunks == _num_chunks and !_saved_file) {
@@ -299,7 +303,7 @@ public:
 
     void clear_chunk_cache() {
         while (!_recv_chunk_cache.empty()) {
-            received_chunk(_recv_chunk_cache.front());
+            received_chunk(std::move(_recv_chunk_cache.front()));
             _recv_chunk_cache.pop();
         }
     }

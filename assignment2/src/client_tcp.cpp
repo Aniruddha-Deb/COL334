@@ -20,7 +20,7 @@ void Client::can_read_TCP() {
     else if (nb == 0) {
         // this happens when the socket has disconnected
         // have a callback that detatches this socket from everything
-        // disconnected();
+        disconnected();
     }
     else {
         // handle the event where we don't read a complete filechunk in...
@@ -32,14 +32,14 @@ void Client::can_read_TCP() {
 
 void Client::can_read_UDP() {
     // ControlMessage req_data;
-    std::shared_ptr<FileChunk> c(new FileChunk);
+    std::unique_ptr<FileChunk> c{new FileChunk()};
     ssize_t nb = recvfrom(_udp_sock, c.get(), sizeof(FileChunk), 0, nullptr, 0);
 
     if (nb == -1) {
         std::cerr << "Error while reading from UDP socket (errno " << errno << ")" << std::endl;
     }
     else {
-        received_chunk(c);
+        received_chunk(std::move(c));
     }
 }
 
