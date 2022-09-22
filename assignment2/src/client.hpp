@@ -52,6 +52,7 @@ class Client {
     uint32_t _num_rcvd_chunks = 0;
 
     std::vector<std::unique_ptr<FileChunk>> _chunks;
+    std::vector<bool> _rcvd_chunks;
 
     std::queue<uint32_t> _chunk_buffer;
     std::queue<ControlMessage> _control_msg_buffer;
@@ -186,12 +187,13 @@ public:
     void init_chunk_request_sequence(bool randomize) {
         _req_sequence.resize(_num_chunks);
         _chunks.resize(_num_chunks);
+        _rcvd_chunks.resize(_num_chunks, false);
 
         std::cout << "There are " << _num_chunks << " chunks making up the file" << std::endl;
 
         for (uint32_t i=0; i<_num_chunks; i++) {
             _req_sequence[i] = i;
-            _chunks[i] = nullptr; // TODO zero check here
+            // _chunks[i] = nullptr; // TODO zero check here
         }
 
         if (randomize) {
@@ -259,17 +261,14 @@ public:
         // why don't we just push this to chunks the minute we receive it?
         // Because to init the chunks, we need the number of chunks. 
 
-        assert(chunk);
-
         if (!_registered) {
             _recv_chunk_cache.push(std::move(chunk));
         }
         else {
-            assert(chunk);
             const auto chunk_id = chunk->id;
-            std::cout << (chunk_id) << std::endl;
-            if (_chunks[chunk_id] == nullptr) {                
+            if (!_rcvd_chunks[chunk_id]) {                
                 _chunks[chunk_id] = std::move(chunk);
+                _rcvd_chunks[chunk_id] = true;
                 if (_chunk_request_times.find(chunk_id) != _chunk_request_times.end()) {
                     auto curr_time = std::chrono::high_resolution_clock::now();
                     _chunk_rtt_times[chunk_id] = 

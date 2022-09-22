@@ -50,7 +50,6 @@ class Server {
 
     // initial file chunk list
     std::queue<std::shared_ptr<FileChunk>> _chunks_to_distribute;
-    std::unordered_map<uint32_t, uint32_t> _authoritative_chunk_owners;
     std::unordered_set<uint32_t> _chunks_being_distributed;
     std::unordered_set<uint32_t> _chunks_distributed;
 
@@ -168,13 +167,13 @@ public:
         _evt_queue.add_event(tcp_fd_handle, EVFILT_WRITE);
     }
 
-
     void client_disconnected(uint32_t client_id) {
         // disconnect client_id from everything
         std::cout << "Disconnecting client with id " << client_id << std::endl;
         for (auto chunk_id : _client_requests[client_id]) {
             _chunk_requests[chunk_id].erase(client_id);
         }
+
         _client_id_contingency_lookup.erase(_client_id_contingency_reverse_lookup[client_id]);
         _client_id_contingency_reverse_lookup.erase(client_id);
         _client_requests.erase(client_id);
@@ -247,9 +246,19 @@ public:
         }
         else {
             for (int i=0; i<10; i++) {
+		int nc = _clients.size()/(1<<i);
                 if (chunk_id+i < _tot_chunks) {
                     // std::cout << "Requesting chunk " << chunk_id+i << " From client " << _authoritative_chunk_owners[chunk_id+i] << std::endl;
-                    _clients[_authoritative_chunk_owners[chunk_id+i]]->send_control_msg({REQ,client_id,chunk_id});
+                    // The farther the chunk, the fewer the requests for it...
+		    // have a geometric progression down for the number of 
+		    // clients we request. The first one goes out to all the 
+		    // clients, the next one to half, and so on
+		    int c = 0;
+		    for (const auto& p : _clients) {
+			if (c >= nc) break;
+                    	p.second->send_control_msg({REQ,client_id,chunk_id});
+			c++;
+		    }
                 }
             }
 
@@ -274,7 +283,6 @@ public:
         while (!_chunks_to_distribute.empty() and ctr < chunk_lim) {
             conn->send_chunk(_chunks_to_distribute.front());
             _chunks_being_distributed.insert(_chunks_to_distribute.front()->id);
-            _authoritative_chunk_owners[_chunks_to_distribute.front()->id] = conn->get_client_id();
             _chunks_to_distribute.pop();
             ctr++;
         }

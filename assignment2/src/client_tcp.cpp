@@ -32,7 +32,7 @@ void Client::can_read_TCP() {
 
 void Client::can_read_UDP() {
     // ControlMessage req_data;
-    std::unique_ptr<FileChunk> c{new FileChunk()};
+    std::unique_ptr<FileChunk> c = std::make_unique<FileChunk>();
     ssize_t nb = recvfrom(_udp_sock, c.get(), sizeof(FileChunk), 0, nullptr, 0);
 
     if (nb == -1) {
