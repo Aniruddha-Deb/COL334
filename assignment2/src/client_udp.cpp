@@ -11,7 +11,7 @@ void Client::configure_tcp(uintptr_t tcp_fd) {
 }
 
 void Client::can_read_TCP() {
-    std::unique_ptr<FileChunk> c{new FileChunk()};
+    std::unique_ptr<FileChunk> c = std::make_unique<FileChunk>();
     ssize_t nb = recv(_tcp_sock, c.get(), sizeof(FileChunk), 0);
 
     if (nb == -1) {
@@ -26,7 +26,6 @@ void Client::can_read_TCP() {
         // handle the event where we don't read a complete filechunk in...
         // actually, such an event won't come up due to the low-water level
         // we've set.
-        assert(c);
         received_chunk(std::move(c));
     }
 }
