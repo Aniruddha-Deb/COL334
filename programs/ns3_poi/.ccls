@@ -1,0 +1,3 @@
+clang++
+-std=c++14
+-I/Users/Sensei/temp/ns-allinone-3.29/ns-3.29/build/

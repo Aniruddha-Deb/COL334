@@ -1,0 +1,264 @@
+\documentclass[12pt]{article}
+\usepackage[a4paper,margin=0.75in]{geometry}
+\usepackage[utf8]{inputenc}
+\usepackage[OT1]{fontenc}
+\usepackage[table,usenames,dvipsnames]{xcolor}
+\usepackage{array}
+\usepackage{varwidth}
+\usepackage{tabularx}
+\usepackage{amsmath}
+\usepackage{float}
+\usepackage{parskip}
+\usepackage{hyperref}
+\usepackage{forest}
+\usepackage{enumitem}
+\usepackage{graphicx}
+\usepackage{tcolorbox}
+\usepackage{forest}
+
+\renewcommand*\familydefault{\sfdefault}
+
+\definecolor{dkgreen}{rgb}{0,0.6,0}
+\definecolor{gray}{rgb}{0.5,0.5,0.5}
+\definecolor{mauve}{rgb}{0.58,0,0.82}
+
+\newtcolorbox{mybox}[3][]
+{
+  colframe = #2!25,
+  colback  = #2!10,
+  coltitle = #2!20!black,  
+  title    = {#3},
+  #1,
+}
+
+\hypersetup{
+    colorlinks=true,
+    linkcolor=blue,
+    filecolor=magenta,      
+    urlcolor=cyan,
+    pdftitle={Overleaf Example},
+    pdfpagemode=FullScreen,
+}
+
+\title{\textbf{COL334 Assignment 4 Part B}}
+\author{Aniruddha Deb \\ \texttt{2020CS10869}}
+\date{November 2022}
+
+\begin{document}
+
+\maketitle
+
+\section*{(i) Routing Table Convergence}
+
+\begin{enumerate}[label=(\alph*)]
+    \item The plots are as follows:
+    \begin{center}
+        \includegraphics[width=0.44\textwidth]{../Q2/q2a_convergence_100ms.pdf}
+        \includegraphics[width=0.44\textwidth]{../Q2/q2a_convergence_1000ms.pdf}
+        \includegraphics[width=0.44\textwidth]{../Q2/q2a_convergence_20000ms.pdf}
+        \includegraphics[width=0.44\textwidth]{../Q2/q2a_convergence_80000ms.pdf}
+    \end{center}
+
+    \item We see that for small delays, the routers converge quickly, while for the 
+    20 second delay, the routers converge only after a long time, and for the 
+    80 second delay, they do not converge at all.
+
+\end{enumerate}
+
+\section*{(ii) Link severing simulation}
+\begin{enumerate}[label=(\alph*)]
+    \item At T=121 seconds, we have the following tables:
+    \begin{center}
+        Router 1
+
+        \begin{tabular}{|c|c|c|l|c|c|c|c|}
+          \hline
+          Destination & Gateway & Genmask & Flags & Metric & Ref & Use & Iface \\
+          \hline
+          10.0.0.0 & 0.0.0.0 & 255.255.255.0 & U & 1 & - & - & 1 \\
+          \hline
+        \end{tabular}
+
+        Router 2
+
+        \begin{tabular}{|c|c|c|l|c|c|c|c|}
+          \hline
+          Destination & Gateway & Genmask & Flags & Metric & Ref & Use & Iface \\
+          \hline
+          10.0.4.0 & 10.0.2.2 & 255.255.255.0 & UGS & 2 & - & - & 2 \\
+          10.0.3.0 & 10.0.2.2 & 255.255.255.0 & UGS & 2 & - & - & 2 \\
+          10.0.0.0 & 10.0.2.2 & 255.255.255.0 & UGS & 3 & - & - & 2 \\
+          10.0.2.0 & 0.0.0.0 & 255.255.255.0 & U & 1 & - & - & 2 \\
+          \hline
+        \end{tabular}
+
+        Router 3
+
+        \begin{tabular}{|c|c|c|l|c|c|c|c|}
+          \hline
+          Destination & Gateway & Genmask & Flags & Metric & Ref & Use & Iface \\
+          \hline
+          10.0.1.0 & 10.0.2.1 & 255.255.255.0 & UGS & 16 & - & - & 1 \\
+          10.0.2.0 & 0.0.0.0 & 255.255.255.0 & U & 1 & - & - & 1 \\
+          10.0.4.0 & 0.0.0.0 & 255.255.255.0 & U & 1 & - & - & 3 \\
+          \hline
+        \end{tabular}
+    \end{center}
+
+    At T=180 seconds, we have the following tables:
+
+    \begin{center}
+        Router 1
+
+        \begin{tabular}{|c|c|c|l|c|c|c|c|}
+            \hline
+            Destination & Gateway & Genmask & Flags & Metric & Ref & Use & Iface \\
+            \hline
+            10.0.0.0 & 0.0.0.0 & 255.255.255.0 & U & 1 & - & - & 1 \\
+            \hline
+        \end{tabular}
+
+        Router 2
+
+        \begin{tabular}{|c|c|c|l|c|c|c|c|}
+            \hline
+            Destination & Gateway & Genmask & Flags & Metric & Ref & Use & Iface \\
+            \hline
+            10.0.4.0 & 10.0.2.2 & 255.255.255.0 & UGS & 2 & - & - & 2 \\
+            10.0.2.0 & 0.0.0.0 & 255.255.255.0 & U & 1 & - & - & 2 \\
+            \hline
+        \end{tabular}
+
+        Router 3
+
+        \begin{tabular}{|c|c|c|l|c|c|c|c|}
+            \hline
+            Destination & Gateway & Genmask & Flags & Metric & Ref & Use & Iface \\
+            \hline
+            10.0.1.0 & 10.0.2.1 & 255.255.255.0 & UGS & 16 & - & - & 1 \\
+            10.0.2.0 & 0.0.0.0 & 255.255.255.0 & U & 1 & - & - & 1 \\
+            10.0.4.0 & 0.0.0.0 & 255.255.255.0 & U & 1 & - & - & 3 \\
+            \hline
+        \end{tabular}
+    \end{center}
+
+    \item The Reachability graph is as follows:
+    \begin{center}
+        \includegraphics[width=0.8\textwidth]{../Q2/q2b_reachable.pdf}
+    \end{center}
+
+    \item At T=51 seconds, the path packets take is src $\rightarrow$ R1 
+        $\rightarrow$ R3 $\rightarrow$ dest. The same path is taken at T=119 s, as 
+        the link is not yet severed. At T=120 s, however, the R1 $\rightarrow$ R3 link is severed
+        and we see that the destination node is not reachable at T=121 seconds, 
+        as there are no paths to it (the link from R1 to R2 and R1 to R3 both 
+        have been severed). 
+
+\end{enumerate}
+
+\section*{(iii) Link Reappearing Simulation}
+\begin{enumerate}[label=(\alph*)]
+    \item At T=70 seconds, we have the following tables:
+    \begin{center}
+        Router 1
+
+        \begin{tabular}{|c|c|c|l|c|c|c|c|}
+            \hline
+            Destination & Gateway & Genmask & Flags & Metric & Ref & Use & Iface \\
+            \hline
+            10.0.0.0 & 0.0.0.0 & 255.255.255.0 & U & 1 & - & - & 1 \\
+            \hline
+        \end{tabular}
+
+        Router 2
+
+        \begin{tabular}{|c|c|c|l|c|c|c|c|}
+            \hline
+            Destination & Gateway & Genmask & Flags & Metric & Ref & Use & Iface \\
+            \hline
+            10.0.4.0 & 10.0.2.2 & 255.255.255.0 & UGS & 2 & - & - & 2 \\
+            10.0.2.0 & 0.0.0.0 & 255.255.255.0 & U & 1 & - & - & 2 \\
+            \hline
+        \end{tabular}
+
+        Router 3
+
+        \begin{tabular}{|c|c|c|l|c|c|c|c|}
+            \hline
+            Destination & Gateway & Genmask & Flags & Metric & Ref & Use & Iface \\
+            \hline
+            10.0.2.0 & 0.0.0.0 & 255.255.255.0 & U & 1 & - & - & 1 \\
+            10.0.4.0 & 0.0.0.0 & 255.255.255.0 & U & 1 & - & - & 3 \\
+            \hline
+        \end{tabular}
+    \end{center}
+
+    At T=180 seconds, we have the following tables:
+    \begin{center}
+        Router 1
+
+        \begin{tabular}{|c|c|c|l|c|c|c|c|}
+            \hline
+            Destination & Gateway & Genmask & Flags & Metric & Ref & Use & Iface \\
+            \hline
+            10.0.4.0 & 10.0.3.2 & 255.255.255.0 & UGS & 2 & - & - & 3 \\
+            10.0.2.0 & 10.0.1.2 & 255.255.255.0 & UGS & 2 & - & - & 2 \\
+            10.0.0.0 & 0.0.0.0 & 255.255.255.0 & U & 1 & - & - & 1 \\
+            10.0.1.0 & 0.0.0.0 & 255.255.255.0 & U & 1 & - & - & 2 \\
+            10.0.3.0 & 0.0.0.0 & 255.255.255.0 & U & 1 & - & - & 3 \\
+            \hline
+        \end{tabular}
+
+        Router 2
+
+        \begin{tabular}{|c|c|c|l|c|c|c|c|}
+            \hline
+            Destination & Gateway & Genmask & Flags & Metric & Ref & Use & Iface \\
+            \hline
+            10.0.4.0 & 10.0.2.2 & 255.255.255.0 & UGS & 2 & - & - & 2 \\
+            10.0.3.0 & 10.0.1.1 & 255.255.255.0 & UGS & 2 & - & - & 1 \\
+            10.0.0.0 & 10.0.1.1 & 255.255.255.0 & UGS & 2 & - & - & 1 \\
+            10.0.1.0 & 10.0.2.2 & 255.255.255.0 & UGS & 3 & - & - & 2 \\
+            10.0.2.0 & 0.0.0.0 & 255.255.255.0 & U & 1 & - & - & 2 \\
+            10.0.1.0 & 0.0.0.0 & 255.255.255.0 & U & 1 & - & - & 1 \\
+            \hline
+        \end{tabular}
+
+        Router 3
+
+        \begin{tabular}{|c|c|c|l|c|c|c|c|}
+            \hline
+            Destination & Gateway & Genmask & Flags & Metric & Ref & Use & Iface \\
+            \hline
+            10.0.1.0 & 10.0.3.1 & 255.255.255.0 & UGS & 2 & - & - & 2 \\
+            10.0.0.0 & 10.0.3.1 & 255.255.255.0 & UGS & 2 & - & - & 2 \\
+            10.0.2.0 & 0.0.0.0 & 255.255.255.0 & U & 1 & - & - & 1 \\
+            10.0.3.0 & 10.0.2.1 & 255.255.255.0 & UGS & 3 & - & - & 1 \\
+            10.0.4.0 & 0.0.0.0 & 255.255.255.0 & U & 1 & - & - & 3 \\
+            10.0.3.0 & 0.0.0.0 & 255.255.255.0 & U & 1 & - & - & 2 \\
+            \hline
+        \end{tabular}      
+    \end{center}
+
+    \item The Reachability graph is as follows:
+    \begin{center}
+        \includegraphics[width=0.8\textwidth]{../Q2/q2b_reachable_3.pdf}
+    \end{center}
+
+    \item The destination node is reachable after T=140 seconds, as the 
+        links to it have been reestablished at T=120 seconds. The reachability 
+        does not immediately change after the link has been reestablished, eg. at 
+        T=121 seconds, as the routing tables take time to update. 
+\end{enumerate}
+
+\subsection*{Appendix}
+
+All files are as specified in the submission instructions. The rip-simple-network file was 
+modified to create the connection and the simulation. The script saves the routing 
+tables to the respective files, and the plotting was done using a Jupyter notebook 
+and matplotlib (which has been attached, both as a notebook and as a script). 
+The data files generated after the run are in the data directory. Note that the 
+reachability and convergence CSV files were generated by hand after going 
+through the routing tables that were printed to file.
+
+\end{document}

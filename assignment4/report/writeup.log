@@ -1,4 +1,4 @@
-This is pdfTeX, Version 3.14159265-2.6-1.40.21 (TeX Live 2020) (preloaded format=pdflatex 2020.10.15)  5 NOV 2022 20:14
+This is pdfTeX, Version 3.14159265-2.6-1.40.21 (TeX Live 2020) (preloaded format=pdflatex 2020.10.15)  10 NOV 2022 11:12
 entering extended mode
  restricted \write18 enabled.
  file:line:error style messages enabled.
@@ -704,30 +704,62 @@ LaTeX Info: Redefining \nameref on input line 47.
 \@outlinefile=\write7
 \openout7 = `writeup.out'.
 
- ABD: EveryShipout initializing macros [1
+ ABD: EveryShipout initializing macros
+<../Q1/cwnd_plot_c1_TcpNewReno.pdf, id=7, 1193.68776pt x 332.91252pt>
+File: ../Q1/cwnd_plot_c1_TcpNewReno.pdf Graphic file (type pdf)
+<use ../Q1/cwnd_plot_c1_TcpNewReno.pdf>
+Package pdftex.def Info: ../Q1/cwnd_plot_c1_TcpNewReno.pdf  used on input line 59.
+(pdftex.def)             Requested size: 430.4129pt x 120.04144pt.
+<../Q1/cwnd_plot_c1_TcpNewRenoPlus.pdf, id=8, 1193.68776pt x 332.91252pt>
+File: ../Q1/cwnd_plot_c1_TcpNewRenoPlus.pdf Graphic file (type pdf)
+<use ../Q1/cwnd_plot_c1_TcpNewRenoPlus.pdf>
+Package pdftex.def Info: ../Q1/cwnd_plot_c1_TcpNewRenoPlus.pdf  used on input line 61.
+(pdftex.def)             Requested size: 430.4129pt x 120.04144pt.
+<../Q1/cwnd_plot_c2_TcpNewReno.pdf, id=9, 1193.68776pt x 332.91252pt>
+File: ../Q1/cwnd_plot_c2_TcpNewReno.pdf Graphic file (type pdf)
+<use ../Q1/cwnd_plot_c2_TcpNewReno.pdf>
+Package pdftex.def Info: ../Q1/cwnd_plot_c2_TcpNewReno.pdf  used on input line 67.
+(pdftex.def)             Requested size: 430.4129pt x 120.04144pt.
+<../Q1/cwnd_plot_c2_TcpNewRenoPlus.pdf, id=10, 1200.07098pt x 332.91252pt>
+File: ../Q1/cwnd_plot_c2_TcpNewRenoPlus.pdf Graphic file (type pdf)
+<use ../Q1/cwnd_plot_c2_TcpNewRenoPlus.pdf>
+Package pdftex.def Info: ../Q1/cwnd_plot_c2_TcpNewRenoPlus.pdf  used on input line 69.
+(pdftex.def)             Requested size: 430.4129pt x 119.40138pt.
+ [1
 
-{/usr/local/texlive/2020/texmf-var/fonts/map/pdftex/updmap/pdftex.map}]
-Package atveryend Info: Empty hook `BeforeClearDocument' on input line 52.
-Package atveryend Info: Empty hook `AfterLastShipout' on input line 52.
+{/usr/local/texlive/2020/texmf-var/fonts/map/pdftex/updmap/pdftex.map} <../Q1/cwnd_plot_c1_TcpNewReno.pdf> <../Q1/cwnd_plot_c1_TcpNewRenoPlus.pdf> <../Q1/cwnd_plot_c2_TcpNewReno.pdf>]
+<../Q1/cwnd_plot_c3_TcpNewReno.pdf, id=127, 1200.07098pt x 332.91252pt>
+File: ../Q1/cwnd_plot_c3_TcpNewReno.pdf Graphic file (type pdf)
+<use ../Q1/cwnd_plot_c3_TcpNewReno.pdf>
+Package pdftex.def Info: ../Q1/cwnd_plot_c3_TcpNewReno.pdf  used on input line 75.
+(pdftex.def)             Requested size: 430.4129pt x 119.40138pt.
+<../Q1/cwnd_plot_c3_TcpNewRenoPlus.pdf, id=128, 1200.07098pt x 332.91252pt>
+File: ../Q1/cwnd_plot_c3_TcpNewRenoPlus.pdf Graphic file (type pdf)
+<use ../Q1/cwnd_plot_c3_TcpNewRenoPlus.pdf>
+Package pdftex.def Info: ../Q1/cwnd_plot_c3_TcpNewRenoPlus.pdf  used on input line 77.
+(pdftex.def)             Requested size: 430.4129pt x 119.40138pt.
+ [2 <../Q1/cwnd_plot_c2_TcpNewRenoPlus.pdf> <../Q1/cwnd_plot_c3_TcpNewReno.pdf> <../Q1/cwnd_plot_c3_TcpNewRenoPlus.pdf>]
+Package atveryend Info: Empty hook `BeforeClearDocument' on input line 103.
+Package atveryend Info: Empty hook `AfterLastShipout' on input line 103.
  (./writeup.aux)
-Package atveryend Info: Executing hook `AtVeryEndDocument' on input line 52.
-Package atveryend Info: Executing hook `AtEndAfterFileList' on input line 52.
+Package atveryend Info: Executing hook `AtVeryEndDocument' on input line 103.
+Package atveryend Info: Executing hook `AtEndAfterFileList' on input line 103.
 Package rerunfilecheck Info: File `writeup.out' has not changed.
 (rerunfilecheck)             Checksum: D41D8CD98F00B204E9800998ECF8427E;0.
  ) 
 Here is how much of TeX's memory you used:
- 29331 strings out of 480608
- 668995 string characters out of 5903629
- 948464 words of memory out of 5000000
- 44792 multiletter control sequences out of 15000+600000
- 535089 words of font info for 34 fonts, out of 8000000 for 9000
+ 29381 strings out of 480608
+ 670648 string characters out of 5903629
+ 950474 words of memory out of 5000000
+ 44827 multiletter control sequences out of 15000+600000
+ 535677 words of font info for 36 fonts, out of 8000000 for 9000
  1141 hyphenation exceptions out of 8191
- 67i,7n,75p,1604b,313s stack positions out of 5000i,500n,10000p,200000b,80000s
-</usr/local/texlive/2020/texmf-dist/fonts/type1/public/amsfonts/cm/cmss12.pfb></usr/local/texlive/2020/texmf-dist/fonts/type1/public/amsfonts/cm/cmss17.pfb></usr/local/texlive/2020/texmf-dist/fonts/type1/public/amsfonts/cm/cmtt12.pfb>
-Output written on writeup.pdf (1 page, 23339 bytes).
+ 67i,7n,75p,1604b,596s stack positions out of 5000i,500n,10000p,200000b,80000s
+</usr/local/texlive/2020/texmf-dist/fonts/type1/public/amsfonts/cm/cmss12.pfb></usr/local/texlive/2020/texmf-dist/fonts/type1/public/amsfonts/cm/cmssbx10.pfb></usr/local/texlive/2020/texmf-dist/fonts/type1/public/amsfonts/cm/cmtt12.pfb>
+Output written on writeup.pdf (2 pages, 182191 bytes).
 PDF statistics:
- 28 PDF objects out of 1000 (max. 8388607)
- 21 compressed objects within 1 object stream
- 2 named destinations out of 1000 (max. 500000)
- 13 words of extra memory for PDF output out of 10000 (max. 10000000)
+ 263 PDF objects out of 1000 (max. 8388607)
+ 62 compressed objects within 1 object stream
+ 9 named destinations out of 1000 (max. 500000)
+ 43 words of extra memory for PDF output out of 10000 (max. 10000000)
 

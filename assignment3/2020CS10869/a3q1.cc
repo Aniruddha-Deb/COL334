@@ -206,7 +206,7 @@ main (int argc, char *argv[])
   cmd.AddValue ("useIpv6", "Use Ipv6", useV6);
   cmd.Parse (argc, argv);
 
-  Config::SetDefault ("ns3::TcpL4Protocol::SocketType", StringValue ("ns3::TcpNewReno"));
+  Config::SetDefault ("ns3::TcpL4Protocol::SocketType", StringValue ("ns3::TcpVeno"));
 
   NodeContainer nodes;
   nodes.Create (2);
@@ -265,11 +265,11 @@ main (int argc, char *argv[])
   app->SetStopTime (Seconds (25.));
 
   AsciiTraceHelper asciiTraceHelper;
-  Ptr<OutputStreamWrapper> stream = asciiTraceHelper.CreateFileStream ("a3q1_Westwood.cwnd");
+  Ptr<OutputStreamWrapper> stream = asciiTraceHelper.CreateFileStream ("a3q1_Veno.cwnd");
   ns3TcpSocket->TraceConnectWithoutContext ("CongestionWindow", MakeBoundCallback (&CwndChange, stream));
 
   PcapHelper pcapHelper;
-  Ptr<PcapFileWrapper> file = pcapHelper.CreateFile ("a3q1_Westwood.pcap", std::ios::out, PcapHelper::DLT_PPP);
+  Ptr<PcapFileWrapper> file = pcapHelper.CreateFile ("a3q1_Veno.pcap", std::ios::out, PcapHelper::DLT_PPP);
   devices.Get (1)->TraceConnectWithoutContext ("PhyRxDrop", MakeBoundCallback (&RxDrop, file));
 
   Simulator::Stop (Seconds (25));

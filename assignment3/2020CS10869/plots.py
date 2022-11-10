@@ -1,14 +1,14 @@
 #!/usr/bin/env python
 # coding: utf-8
 
-# In[13]:
+# In[1]:
 
 
 import matplotlib.pyplot as plt
 import pandas as pd
 
 
-# In[14]:
+# In[3]:
 
 
 data_files = {
@@ -19,28 +19,29 @@ data_files = {
 }
 
 
-# In[15]:
+# In[4]:
 
 
 dfs = {f: pd.read_csv(p, delim_whitespace=True, header=None, names=['Time', 'StartWnd', 'EndWnd']) for f,p in data_files.items()}
 
 
-# In[16]:
+# In[5]:
 
 
 dfs['Vegas']
 
 
-# In[17]:
+# In[10]:
 
 
 for title,df in dfs.items():
+    plt.figure(figsize=(10,5), dpi=100)
     plt.cla()
     plt.plot(df['Time'], df['EndWnd'])
     plt.title(f"Congestion window size for TCP {title}")
     plt.xlabel("Time (s)")
     plt.ylabel("Cwnd")
-    plt.savefig(f"Q1/cwnd_plot_{title}.pdf")
+    plt.savefig(f"Q1/cwnd_plot_{title}.pdf", bbox_inches="tight")
 
 
 # In[18]:
@@ -93,7 +94,7 @@ for title,df in const_cdr_dfs.items():
     plt.savefig(f"Q2/const_cdr_{title}.pdf")
 
 
-# In[9]:
+# In[2]:
 
 
 df = pd.read_csv('Q3/a3q3.cwnd', delim_whitespace=True, header=None, names=['Time', 'StartWnd', 'EndWnd'])

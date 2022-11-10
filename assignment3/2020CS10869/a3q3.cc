@@ -228,19 +228,7 @@ main (int argc, char *argv[])
   NetDeviceContainer d2d3 = p2p.Install(n2n3);
   NetDeviceContainer d2d4 = p2p.Install(n2n4);
   NetDeviceContainer d1d2 = p2p.Install(n1n2);
-
-  NS_LOG_INFO("Adding error models");
-  Ptr<RateErrorModel> em = CreateObject<RateErrorModel> ();
-  em->SetAttribute ("ErrorRate", DoubleValue (0.00001));
-
-  d0d1.Get(0)->SetAttribute("ReceiveErrorModel", PointerValue(em));
-  d0d1.Get(1)->SetAttribute("ReceiveErrorModel", PointerValue(em));
-  d1d2.Get(0)->SetAttribute("ReceiveErrorModel", PointerValue(em));
-  d1d2.Get(1)->SetAttribute("ReceiveErrorModel", PointerValue(em));
-  d2d3.Get(0)->SetAttribute("ReceiveErrorModel", PointerValue(em));
-  d2d3.Get(1)->SetAttribute("ReceiveErrorModel", PointerValue(em));
-  d2d4.Get(0)->SetAttribute("ReceiveErrorModel", PointerValue(em));
-  d2d4.Get(1)->SetAttribute("ReceiveErrorModel", PointerValue(em));
+  p2p.EnablePcapAll("a3q3-packet");
 
   NS_LOG_INFO("Adding IP addresses");
   Ipv4AddressHelper ipv4;

@@ -40,7 +40,7 @@
     pdfpagemode=FullScreen,
 }
 
-\title{COL334 Assignment 4}
+\title{\textbf{COL334 Assignment 4 Part A}}
 \author{Aniruddha Deb \\ \texttt{2020CS10869}}
 \date{November 2022}
 
@@ -48,6 +48,56 @@
 
 \maketitle
 
+\begin{enumerate}
+    \item The plots for each source, with the new and old protocol are as follows:
 
+    \begin{enumerate}[label=(\roman*)]
+        \item For Connection 1 (from Node 1 to Node 3, starting at 1 s and ending at 
+            20 s)
+        \begin{center}
+            TcpNewReno
+            \includegraphics[width=0.88\textwidth]{../Q1/cwnd_plot_c1_TcpNewReno.pdf}
+            TcpNewRenoPlus
+            \includegraphics[width=0.88\textwidth]{../Q1/cwnd_plot_c1_TcpNewRenoPlus.pdf}
+        \end{center}
+        \item For Connection 2 (from Node 1 to Node 3, starting at 5 s and ending at
+            25 s)
+        \begin{center}
+            TcpNewReno
+            \includegraphics[width=0.88\textwidth]{../Q1/cwnd_plot_c2_TcpNewReno.pdf}
+            TcpNewRenoPlus
+            \includegraphics[width=0.88\textwidth]{../Q1/cwnd_plot_c2_TcpNewRenoPlus.pdf}
+        \end{center}
+        \item For Connection 3 (from Node 2 to Node 3, starting at 15 s and ending at 
+            30 s)
+        \begin{center}
+            TcpNewReno
+            \includegraphics[width=0.88\textwidth]{../Q1/cwnd_plot_c3_TcpNewReno.pdf}
+            TcpNewRenoPlus
+            \includegraphics[width=0.88\textwidth]{../Q1/cwnd_plot_c3_TcpNewRenoPlus.pdf}
+        \end{center}
+    \end{enumerate}
+
+    \item We see that TcpNewRenoPlus uses a linear increase in the congestion control 
+        phase and reaches very high congestion window values, whereas TcpNewReno 
+        does not. Also, TcpNewRenoPlus uses a multiplicative increase in the slow 
+        start phase (seen at 20 seconds for connection 3), which allows it to 
+        get back to the old rate faster. 
+
+        As for the impact on the entire network, TcpNewRenoPlus clogs up the network 
+        for others. This can be seen in Connection 1 from 13 to 15 seconds, where 
+        almost no packets are transmitted and congestion window remains almost 
+        constant around 1 MSS. This is because Connection 2 takes up all the 
+        bandwidth on the link that they share, and none is left for Connection 1.
+    
+\end{enumerate}
+
+\subsection*{Appendix}
+
+All files are as specified in the submission instructions. The fifth.cc file was 
+modified to create the connection and the simulation. The script saves the congestion 
+windows to the respective files, and the plotting was done using a Jupyter notebook 
+and matplotlib (which has been attached, both as a notebook and as a script). 
+The data files generated after the run are in the data directory.
 
 \end{document}
